@@ -578,16 +578,25 @@ export default function OnboardingPage() {
 
         {/* Progress bar + back */}
         <div className="flex-none px-5 pt-5 pb-2" style={{ position: "relative", zIndex: 2 }}>
-          {canGoBack && (
-            <button type="button" onClick={goBack}
-              className="flex items-center gap-1 text-sm font-medium mb-3"
-              style={{ color: "var(--muted)", background: "none", border: "none", cursor: "pointer" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6" />
-              </svg>
-              Back
-            </button>
-          )}
+          <div className="flex items-center justify-between mb-3">
+            {canGoBack ? (
+              <button type="button" onClick={goBack}
+                className="flex items-center gap-1 text-sm font-medium"
+                style={{ color: "var(--muted)", background: "none", border: "none", cursor: "pointer" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                Back
+              </button>
+            ) : <div />}
+            {!loggedIn && (
+              <button type="button" onClick={() => router.push("/auth")}
+                className="text-sm font-medium"
+                style={{ color: "var(--muted)", background: "none", border: "none", cursor: "pointer" }}>
+                Log in
+              </button>
+            )}
+          </div>
           <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
             <div style={{
               height: "100%", borderRadius: "9999px", background: "#1C1C1E",
