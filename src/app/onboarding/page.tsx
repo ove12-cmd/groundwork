@@ -333,7 +333,7 @@ export default function OnboardingPage() {
         const plan = await res.json();
         try {
           localStorage.setItem(AI_PLAN_KEY, JSON.stringify({
-            ...plan, focusArea: focusKey, totalDays: duration, createdAt: new Date().toISOString(),
+            ...plan, focusArea: focusKey, totalDays: duration, goal: goalText, createdAt: new Date().toISOString(),
           }));
         } catch { /* ignore */ }
       }

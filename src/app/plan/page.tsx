@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { PHASES, USER_PLANS, ACTIVE_PLAN_ID, type UserPlan, type PlanStatus } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 
 const PHASE_COLORS: Record<string, string> = {
   Awareness: "var(--accent-recharge)",
@@ -103,8 +104,33 @@ export default function PlanPage() {
   const [activePlanId, setActivePlanId] = useState(ACTIVE_PLAN_ID);
   const [selectedPlanId, setSelectedPlanId] = useState(ACTIVE_PLAN_ID);
   const [sheetPlanId, setSheetPlanId] = useState<string | null>(null);
+  const [activePlanSummary, setActivePlanSummary] = useState<string | null>(null);
 
-  const activePlan = plans.find((p) => p.id === activePlanId)!;
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("plans").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
+        .then(({ data }) => {
+          if (!data?.length) return;
+          const mapped: UserPlan[] = data.map((p) => ({
+            id: p.id,
+            name: p.name,
+            focusArea: p.focus_area as UserPlan["focusArea"],
+            totalDays: p.total_days,
+            completedDays: p.completed_days,
+            status: p.status as PlanStatus,
+          }));
+          setPlans(mapped);
+          const active = data.find((p) => p.is_active) ?? data[0];
+          setActivePlanId(active.id);
+          setSelectedPlanId(active.id);
+          setActivePlanSummary(active.summary ?? active.goal ?? null);
+        });
+    });
+  }, []);
+
+  const activePlan = plans.find((p) => p.id === activePlanId) ?? plans[0];
   const sheetPlan = plans.find((p) => p.id === sheetPlanId) ?? null;
 
   const handleSheetAction = (actionId: string) => {
@@ -120,6 +146,8 @@ export default function PlanPage() {
         prev.map((p) => (p.id === sheetPlanId ? { ...p, status: "completed" } : p))
       );
     } else if (actionId === "delete") {
+      const supabase = createClient();
+      supabase.from("plans").delete().eq("id", sheetPlanId).then(() => {});
       setPlans((prev) => prev.filter((p) => p.id !== sheetPlanId));
       if (activePlanId === sheetPlanId) {
         const remaining = plans.filter((p) => p.id !== sheetPlanId);
@@ -176,9 +204,11 @@ export default function PlanPage() {
           <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
             {activePlan.focusArea} — {activePlan.totalDays} Days
           </h1>
-          <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
-            "I want to feel less anxious in social situations"
-          </p>
+          {activePlanSummary && (
+            <p className="text-sm mb-8 leading-relaxed" style={{ color: "var(--muted)" }}>
+              {activePlanSummary}
+            </p>
+          )}
 
           {/* Phase cards */}
           <div className="flex flex-col gap-3">

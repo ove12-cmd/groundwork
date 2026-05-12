@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { AI_PLAN_KEY } from "@/lib/mock-data";
 
 type Mode = "signup" | "login";
 
@@ -25,39 +27,21 @@ function GoogleIcon() {
 }
 
 function InputField({
-  label,
-  type,
-  placeholder,
-  value,
-  onChange,
+  label, type, placeholder, value, onChange,
 }: {
-  label: string;
-  type: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
+  label: string; type: string; placeholder: string; value: string; onChange: (v: string) => void;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>
-        {label}
-      </label>
+      <label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>{label}</label>
       <input
-        type={type}
-        placeholder={placeholder}
-        value={value}
+        type={type} placeholder={placeholder} value={value}
         onChange={(e) => onChange(e.target.value)}
         autoComplete={type === "password" ? "current-password" : type === "email" ? "email" : "name"}
         style={{
-          background: "var(--card)",
-          color: "var(--foreground)",
-          border: "1.5px solid var(--border)",
-          borderRadius: 14,
-          padding: "13px 16px",
-          fontSize: 15,
-          fontFamily: "inherit",
-          outline: "none",
-          width: "100%",
+          background: "var(--card)", color: "var(--foreground)",
+          border: "1.5px solid var(--border)", borderRadius: 14,
+          padding: "13px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", width: "100%",
         }}
         onFocus={(e) => (e.currentTarget.style.borderColor = "#1C1C1E")}
         onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
@@ -66,95 +50,139 @@ function InputField({
   );
 }
 
+async function savePendingPlan(supabase: ReturnType<typeof createClient>, userId: string) {
+  try {
+    const raw = localStorage.getItem(AI_PLAN_KEY);
+    if (!raw) return;
+    const plan = JSON.parse(raw);
+    await supabase.from("plans").insert({
+      user_id: userId,
+      name: plan.planName ?? plan.focusArea ?? "My Plan",
+      focus_area: plan.focusArea,
+      summary: plan.summary,
+      goal: plan.goal,
+      total_days: plan.totalDays ?? 30,
+      completed_days: 0,
+      status: "active",
+      plan_days: plan.days,
+      habits: plan.habits,
+      is_active: true,
+    });
+    localStorage.removeItem(AI_PLAN_KEY);
+  } catch (err) {
+    console.error("Failed to save pending plan:", err);
+  }
+}
+
 export default function AuthPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signup");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checkEmail, setCheckEmail] = useState(false);
 
   const isSignup = mode === "signup";
+  const supabase = createClient();
 
-  const handleContinue = () => {
-    router.push("/plan");
+  const handleContinue = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      if (isSignup) {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) { setError(error.message); return; }
+        if (data.user) {
+          await savePendingPlan(supabase, data.user.id);
+          if (data.session) {
+            router.push("/plan");
+          } else {
+            setCheckEmail(true);
+          }
+        }
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) { setError(error.message); return; }
+        if (data.user) {
+          await savePendingPlan(supabase, data.user.id);
+          router.push("/plan");
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const handleGoogle = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/api/auth/callback` },
+    });
+  };
+
+  if (checkEmail) {
+    return (
+      <div className="flex justify-center min-h-screen" style={{ background: "var(--background)" }}>
+        <div className="w-full max-w-[390px] flex flex-col items-center justify-center px-6 text-center gap-4">
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl" style={{ background: "var(--card)" }}>
+            ✉️
+          </div>
+          <h2 className="text-2xl font-bold" style={{ color: "var(--foreground)", fontFamily: "var(--font-playfair), serif" }}>
+            Check your email
+          </h2>
+          <p className="text-sm leading-relaxed" style={{ color: "var(--muted)" }}>
+            We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account, then come back to log in.
+          </p>
+          <button type="button" onClick={() => { setCheckEmail(false); setMode("login"); }}
+            className="text-sm font-semibold mt-2" style={{ color: "var(--foreground)", background: "none", border: "none", cursor: "pointer" }}>
+            Back to log in
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div
-      className="flex justify-center min-h-screen"
-      style={{ background: "var(--background)" }}
-    >
+    <div className="flex justify-center min-h-screen" style={{ background: "var(--background)" }}>
       <div className="w-full max-w-[390px] flex flex-col px-6 pt-14 pb-10">
 
         {/* Mode toggle */}
-        <div
-          className="flex self-center mb-10 rounded-full p-1"
-          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-        >
+        <div className="flex self-center mb-10 rounded-full p-1" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           {(["signup", "login"] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
+            <button key={m} type="button" onClick={() => { setMode(m); setError(null); }}
               style={{
-                padding: "7px 22px",
-                borderRadius: 9999,
-                fontSize: 13,
-                fontWeight: 600,
+                padding: "7px 22px", borderRadius: 9999, fontSize: 13, fontWeight: 600,
                 background: mode === m ? "#1C1C1E" : "transparent",
                 color: mode === m ? "#ffffff" : "var(--muted)",
-                border: "none",
-                cursor: "pointer",
-                transition: "background 0.18s ease, color 0.18s ease",
-              }}
-            >
+                border: "none", cursor: "pointer", transition: "background 0.18s ease, color 0.18s ease",
+              }}>
               {m === "signup" ? "Sign up" : "Log in"}
             </button>
           ))}
         </div>
 
-        {/* Heading */}
-        <h1
-          className="text-3xl font-bold mb-2"
-          style={{
-            color: "var(--foreground)",
-            fontFamily: "var(--font-playfair), 'Playfair Display', serif",
-            lineHeight: 1.2,
-          }}
-        >
+        <h1 className="text-3xl font-bold mb-2"
+          style={{ color: "var(--foreground)", fontFamily: "var(--font-playfair), 'Playfair Display', serif", lineHeight: 1.2 }}>
           {isSignup ? "Create your account" : "Welcome back"}
         </h1>
         <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
-          {isSignup
-            ? "Your plan is ready — let's save your progress."
-            : "Sign in to continue your journey."}
+          {isSignup ? "Your plan is ready — let's save your progress." : "Sign in to continue your journey."}
         </p>
 
         {/* Social buttons */}
         <div className="flex flex-col gap-3 mb-6">
-          <button
-            type="button"
-            onClick={handleContinue}
+          <button type="button"
             className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl text-sm font-semibold"
-            style={{
-              background: "var(--card)",
-              color: "var(--foreground)",
-              border: "1.5px solid var(--border)",
-            }}
-          >
+            style={{ background: "var(--card)", color: "var(--muted)", border: "1.5px solid var(--border)", cursor: "not-allowed", opacity: 0.5 }}
+            disabled>
             <AppleIcon />
             Continue with Apple
           </button>
-          <button
-            type="button"
-            onClick={handleContinue}
+          <button type="button" onClick={handleGoogle}
             className="w-full flex items-center justify-center gap-3 py-3.5 rounded-2xl text-sm font-semibold"
-            style={{
-              background: "var(--card)",
-              color: "var(--foreground)",
-              border: "1.5px solid var(--border)",
-            }}
-          >
+            style={{ background: "var(--card)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}>
             <GoogleIcon />
             Continue with Google
           </button>
@@ -168,51 +196,38 @@ export default function AuthPage() {
         </div>
 
         {/* Form */}
-        <div className="flex flex-col gap-4 mb-6">
+        <div className="flex flex-col gap-4 mb-4">
           {isSignup && (
-            <InputField
-              label="Full name"
-              type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={setName}
-            />
+            <InputField label="Full name" type="text" placeholder="Your name" value={name} onChange={setName} />
           )}
+          <InputField label="Email" type="email" placeholder="you@example.com" value={email} onChange={setEmail} />
           <InputField
-            label="Email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={setEmail}
-          />
-          <InputField
-            label="Password"
-            type="password"
-            placeholder={isSignup ? "Create a password" : "Your password"}
-            value={password}
-            onChange={setPassword}
+            label="Password" type="password"
+            placeholder={isSignup ? "Create a password (min 6 chars)" : "Your password"}
+            value={password} onChange={setPassword}
           />
         </div>
 
+        {/* Error */}
+        {error && (
+          <p className="text-sm mb-4 px-1" style={{ color: "#c0392b" }}>{error}</p>
+        )}
+
         {/* Primary CTA */}
-        <button
-          type="button"
-          onClick={handleContinue}
+        <button type="button" onClick={handleContinue} disabled={loading || !email || !password}
           className="w-full py-4 rounded-2xl text-base font-semibold mb-5"
-          style={{ background: "#1C1C1E", color: "#ffffff", border: "none" }}
-        >
-          Continue
+          style={{
+            background: loading || !email || !password ? "var(--border)" : "#1C1C1E",
+            color: loading || !email || !password ? "var(--muted)" : "#ffffff",
+            border: "none", cursor: loading || !email || !password ? "not-allowed" : "pointer",
+          }}>
+          {loading ? "Please wait…" : "Continue"}
         </button>
 
-        {/* Switch mode link */}
         <p className="text-center text-sm" style={{ color: "var(--muted)" }}>
           {isSignup ? "Already have an account?" : "Don't have an account yet?"}{" "}
-          <button
-            type="button"
-            onClick={() => setMode(isSignup ? "login" : "signup")}
-            className="font-semibold"
-            style={{ color: "var(--foreground)", background: "none", border: "none", cursor: "pointer" }}
-          >
+          <button type="button" onClick={() => { setMode(isSignup ? "login" : "signup"); setError(null); }}
+            className="font-semibold" style={{ color: "var(--foreground)", background: "none", border: "none", cursor: "pointer" }}>
             {isSignup ? "Log in" : "Sign up"}
           </button>
         </p>
