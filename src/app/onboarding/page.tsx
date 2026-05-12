@@ -186,18 +186,34 @@ function LoadingScreen() {
   );
 }
 
+function SkeletonBar({ width, height = 24, radius = 9999, delay = 0 }: { width: number | string; height?: number; radius?: number; delay?: number }) {
+  return (
+    <motion.div
+      className="skeleton"
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay }}
+      style={{ width, height, borderRadius: radius, flexShrink: 0 }}
+    />
+  );
+}
+
 function QuestionSkeleton() {
   return (
-    <div className="px-6 pt-12 pb-10 animate-pulse">
-      <div className="h-3 w-24 rounded-full mb-4" style={{ background: "var(--border)" }} />
-      <div className="h-6 w-full rounded-full mb-2" style={{ background: "var(--border)" }} />
-      <div className="h-6 w-3/4 rounded-full mb-8" style={{ background: "var(--border)" }} />
-      <div className="flex flex-wrap gap-2.5 mb-8">
-        {[100, 130, 90, 115].map((w, i) => (
-          <div key={i} className="h-10 rounded-full" style={{ background: "var(--border)", width: w }} />
+    <div className="px-6 pt-12 pb-10">
+      <SkeletonBar width={88} height={12} delay={0} />
+      <div style={{ height: 16 }} />
+      <SkeletonBar width="100%" height={26} delay={0.06} />
+      <div style={{ height: 8 }} />
+      <SkeletonBar width="70%" height={26} delay={0.1} />
+      <div style={{ height: 32 }} />
+      <div className="flex flex-wrap gap-2.5">
+        {[108, 140, 96, 122].map((w, i) => (
+          <SkeletonBar key={i} width={w} height={40} delay={0.14 + i * 0.06} />
         ))}
       </div>
-      <div className="h-14 rounded-2xl" style={{ background: "var(--border)" }} />
+      <div style={{ height: 32 }} />
+      <SkeletonBar width="100%" height={54} radius={16} delay={0.4} />
     </div>
   );
 }
