@@ -7,32 +7,10 @@ import { HabitIconSvg } from "@/components/HabitIcon";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
-import {
-  TRACKING_DATA, WEEKLY_REVIEWS, type Habit,
-} from "@/lib/mock-data";
+import { type Habit } from "@/lib/mock-data";
 import { useActivePlan } from "@/lib/useActivePlan";
 
-const WEEK_DAYS = [
-  { label: "M", done: true }, { label: "T", done: true }, { label: "W", done: true },
-  { label: "T", done: false }, { label: "F", done: true }, { label: "S", done: false },
-  { label: "S", done: false },
-];
-
-const TASK_BREAKDOWN = [
-  { type: "Reflection", done: 6, total: 9 },
-  { type: "Journal",    done: 5, total: 7 },
-  { type: "Breathing",  done: 8, total: 10 },
-  { type: "Mindfulness", done: 3, total: 6 },
-];
-
-const MILESTONES = [
-  { label: "First task completed",  achieved: true },
-  { label: "3-day streak",          achieved: true },
-  { label: "First journal entry",   achieved: true },
-  { label: "7-day streak",          achieved: false },
-  { label: "Halfway through plan",  achieved: false },
-  { label: "Complete all 30 days",  achieved: false },
-];
+interface TrackingEntry { date: string; morning: number | null; evening: number | null; }
 
 const RING_SIZE = 160;
 const STROKE = 12;
@@ -94,13 +72,37 @@ export default function MetricsPage() {
 
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitGrid, setHabitGrid] = useState<Record<string, boolean[]>>({});
+  const [trackingData, setTrackingData] = useState<TrackingEntry[]>([]);
+  const [weekDays, setWeekDays] = useState<{ label: string; done: boolean }[]>([]);
 
   useEffect(() => {
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+
+    // Load 90-day tracking history from localStorage
+    const entries: TrackingEntry[] = [];
+    const DAY_NAMES = ["S", "M", "T", "W", "T", "F", "S"];
+    const week: { label: string; done: boolean }[] = [];
+    for (let i = 89; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      try {
+        const mr = localStorage.getItem(`groundwork-track-${dateStr}-morning`);
+        const er = localStorage.getItem(`groundwork-track-${dateStr}-evening`);
+        const morning = mr ? JSON.parse(mr).value : null;
+        const evening = er ? JSON.parse(er).value : null;
+        if (morning !== null || evening !== null) entries.push({ date: dateStr, morning, evening });
+        if (i < 7) week.push({ label: DAY_NAMES[d.getDay()], done: !!(morning || evening) });
+      } catch { if (i < 7) week.push({ label: DAY_NAMES[d.getDay()], done: false }); }
+    }
+    setTrackingData(entries);
+    setWeekDays(week);
+
+    // Load habits + 7-day completion grid
     const raw = localStorage.getItem("groundwork-habits");
     const loadedHabits: Habit[] = raw ? JSON.parse(raw) : [];
     setHabits(loadedHabits);
-
-    const today = new Date();
     const grid: Record<string, boolean[]> = {};
     for (const habit of loadedHabits) {
       grid[habit.id] = [];
@@ -118,20 +120,35 @@ export default function MetricsPage() {
     setHabitGrid(grid);
   }, []);
 
-  const sliced = TRACKING_DATA.slice(-RANGE_SLICE[timeRange]);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayEntry = trackingData.find(d => d.date === todayStr);
+
+  const sliceCount = RANGE_SLICE[timeRange];
+  const sliced = trackingData.slice(-sliceCount);
   const tickInterval = RANGE_TICK[timeRange];
 
   const chartData = sliced.map((d) => ({
-    label: d.date.slice(5).replace("-", "/"), // MM/DD
-    morning: d.morning,
-    evening: d.evening,
+    label: d.date.slice(5).replace("-", "/"),
+    ...(d.morning !== null && { morning: d.morning }),
+    ...(d.evening !== null && { evening: d.evening }),
   }));
 
-  const avgMorning = (sliced.reduce((s, d) => s + d.morning, 0) / sliced.length).toFixed(1);
-  const avgEvening = (sliced.reduce((s, d) => s + d.evening, 0) / sliced.length).toFixed(1);
-  const todayEntry = TRACKING_DATA[TRACKING_DATA.length - 1];
+  const morningEntries = sliced.filter(d => d.morning !== null);
+  const eveningEntries = sliced.filter(d => d.evening !== null);
+  const avgMorning = morningEntries.length > 0
+    ? (morningEntries.reduce((s, d) => s + d.morning!, 0) / morningEntries.length).toFixed(1)
+    : "—";
+  const avgEvening = eveningEntries.length > 0
+    ? (eveningEntries.reduce((s, d) => s + d.evening!, 0) / eveningEntries.length).toFixed(1)
+    : "—";
 
-  const latestReview = WEEKLY_REVIEWS[WEEKLY_REVIEWS.length - 1];
+  const milestones = [
+    { label: "First day completed",   achieved: (plan?.completedDays ?? 0) >= 1 },
+    { label: "3-day streak",          achieved: (plan?.completedDays ?? 0) >= 3 },
+    { label: "7-day streak",          achieved: (plan?.completedDays ?? 0) >= 7 },
+    { label: "Halfway through plan",  achieved: completionPct >= 50 },
+    { label: `Complete all ${plan?.totalDays ?? 30} days`, achieved: completionPct >= 100 },
+  ];
 
   return (
     <Shell>
@@ -163,8 +180,8 @@ export default function MetricsPage() {
         <div className="rounded-2xl p-4 mb-6 grid grid-cols-4 gap-3"
           style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
           {[
-            { label: "Today ☀️", value: todayEntry.morning },
-            { label: "Today 🌙", value: todayEntry.evening },
+            { label: "Today ☀️", value: todayEntry?.morning ?? "—" },
+            { label: "Today 🌙", value: todayEntry?.evening ?? "—" },
             { label: `Avg ☀️ (${RANGE_LABELS[timeRange]})`, value: avgMorning },
             { label: `Avg 🌙 (${RANGE_LABELS[timeRange]})`, value: avgEvening },
           ].map((s) => (
@@ -187,8 +204,11 @@ export default function MetricsPage() {
           <p className="text-[11px] font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
             This week
           </p>
+          {weekDays.every(d => !d.done) && (
+            <p className="text-xs mb-3" style={{ color: "var(--muted)" }}>Log your morning or evening level to track your week.</p>
+          )}
           <div className="flex justify-between">
-            {WEEK_DAYS.map((d, i) => (
+            {weekDays.map((d, i) => (
               <div key={i} className="flex flex-col items-center gap-2">
                 <div style={{ width: 36, height: 36, borderRadius: "50%", background: d.done ? "#1C1C1E" : "transparent",
                   border: `2px solid ${d.done ? "#1C1C1E" : "var(--border)"}`,
@@ -224,53 +244,40 @@ export default function MetricsPage() {
             </div>
           </div>
 
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: -28 }}>
-              <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted)" }} axisLine={false} tickLine={false}
-                interval={tickInterval - 1} />
-              <YAxis domain={[1, 10]} ticks={[1, 5, 10]} tick={{ fontSize: 10, fill: "var(--muted)" }} axisLine={false} tickLine={false} />
-              <Tooltip content={<TrackingTooltip />} />
-              <Line type="monotone" dataKey="morning" name="morning" stroke="#1C1C1E" strokeWidth={2} dot={false}
-                activeDot={{ r: 4, fill: "#1C1C1E", strokeWidth: 0 }} />
-              <Line type="monotone" dataKey="evening" name="evening" stroke="#888" strokeWidth={2}
-                strokeDasharray="4 2" dot={false} activeDot={{ r: 4, fill: "#888", strokeWidth: 0 }} />
-            </LineChart>
-          </ResponsiveContainer>
-
-          {/* Legend */}
-          <div className="flex gap-4 mt-1">
-            {[{ color: "#1C1C1E", label: "Morning", dashed: false }, { color: "#888", label: "Evening", dashed: true }].map((l) => (
-              <div key={l.label} className="flex items-center gap-1.5">
-                <div style={{ width: 16, height: 2, background: l.color, borderRadius: 1,
-                  backgroundImage: l.dashed ? `repeating-linear-gradient(90deg, ${l.color} 0 4px, transparent 4px 6px)` : undefined }} />
-                <span className="text-[10px]" style={{ color: "var(--muted)" }}>{l.label}</span>
+          {chartData.length === 0 ? (
+            <div className="flex items-center justify-center py-10">
+              <p className="text-sm text-center" style={{ color: "var(--muted)" }}>
+                Your tracking data will appear here once you start logging your daily levels.
+              </p>
+            </div>
+          ) : (
+            <>
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 4, left: -28 }}>
+                  <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--muted)" }} axisLine={false} tickLine={false}
+                    interval={tickInterval - 1} />
+                  <YAxis domain={[1, 10]} ticks={[1, 5, 10]} tick={{ fontSize: 10, fill: "var(--muted)" }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<TrackingTooltip />} />
+                  <Line type="monotone" dataKey="morning" name="morning" stroke="#1C1C1E" strokeWidth={2} dot={false}
+                    activeDot={{ r: 4, fill: "#1C1C1E", strokeWidth: 0 }} />
+                  <Line type="monotone" dataKey="evening" name="evening" stroke="#888" strokeWidth={2}
+                    strokeDasharray="4 2" dot={false} activeDot={{ r: 4, fill: "#888", strokeWidth: 0 }} />
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex gap-4 mt-1">
+                {[{ color: "#1C1C1E", label: "Morning", dashed: false }, { color: "#888", label: "Evening", dashed: true }].map((l) => (
+                  <div key={l.label} className="flex items-center gap-1.5">
+                    <div style={{ width: 16, height: 2, background: l.color, borderRadius: 1,
+                      backgroundImage: l.dashed ? `repeating-linear-gradient(90deg, ${l.color} 0 4px, transparent 4px 6px)` : undefined }} />
+                    <span className="text-[10px]" style={{ color: "var(--muted)" }}>{l.label}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          )}
         </div>
 
-        {/* Task breakdown */}
-        <div className="rounded-2xl px-4 py-4 mb-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <p className="text-[11px] font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>Tasks by type</p>
-          <div className="flex flex-col gap-4">
-            {TASK_BREAKDOWN.map((row, idx) => {
-              const pct = Math.round((row.done / row.total) * 100);
-              return (
-                <div key={row.type}>
-                  <div className="flex justify-between mb-1.5">
-                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{row.type}</span>
-                    <span className="text-xs" style={{ color: "var(--muted)" }}>{row.done}/{row.total}</span>
-                  </div>
-                  <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
-                    <div className="h-full rounded-full"
-                      style={{ width: `${pct}%`, background: "#1C1C1E", opacity: 0.75 + idx * 0.07 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
 
         {/* Habits 7-day grid */}
         <div className="rounded-2xl px-4 py-4 mb-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
@@ -326,7 +333,7 @@ export default function MetricsPage() {
           Milestones
         </p>
         <div className="flex flex-col gap-2 mb-6">
-          {MILESTONES.map((m) => (
+          {milestones.map((m) => (
             <div key={m.label} className="flex items-center gap-3 rounded-2xl px-4 py-3"
               style={{ background: "var(--card)", border: "1px solid var(--border)", opacity: m.achieved ? 1 : 0.45 }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%",
@@ -352,25 +359,8 @@ export default function MetricsPage() {
         <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
           Weekly reviews
         </p>
-        <div className="flex flex-col gap-2">
-          {[...WEEKLY_REVIEWS].reverse().map((review) => (
-            <button key={review.id} type="button" onClick={() => router.push("/weekly-review")}
-              className="w-full rounded-2xl px-4 py-4 text-left"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                  Week {review.weekNumber} · {review.dateRange}
-                </span>
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full"
-                  style={{ background: "#1C1C1E", color: "#fff" }}>
-                  {review.overallScore}
-                </span>
-              </div>
-              <p className="text-xs leading-relaxed line-clamp-2" style={{ color: "var(--muted)" }}>
-                {review.highlights[0]}
-              </p>
-            </button>
-          ))}
+        <div className="rounded-2xl px-4 py-5 text-center" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Your weekly reviews will appear here after your first week.</p>
         </div>
 
       </div>

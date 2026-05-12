@@ -31,13 +31,11 @@ const RING_SIZE = 64;
 const STROKE = 6;
 const RADIUS = (RING_SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const WEEK_DOTS = [true, true, true, false, true, false, false];
-const MOOD_SPARKLINE = [{ v: 2 }, { v: 3 }, { v: 2 }, { v: 4 }, { v: 3 }, { v: 4 }, { v: 5 }];
 
 function greeting() {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
+  if (h < 13) return "Good morning";
+  if (h < 18) return "Good afternoon";
   return "Good evening";
 }
 
@@ -160,12 +158,33 @@ export default function TodayPage() {
 
   const [hydrated, setHydrated] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
+  const [weekDots, setWeekDots] = useState<boolean[]>(Array(7).fill(false));
+  const [moodSparkline, setMoodSparkline] = useState<{ v: number }[]>([]);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem("groundwork-user-name");
       if (stored) setFirstName(stored.split(" ")[0]);
     } catch { /* ignore */ }
+
+    // Build week dots and mood sparkline from real tracking data
+    const now = new Date();
+    const dots: boolean[] = [];
+    const sparkline: { v: number }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const dateStr = d.toISOString().split("T")[0];
+      try {
+        const mr = localStorage.getItem(`groundwork-track-${dateStr}-morning`);
+        const er = localStorage.getItem(`groundwork-track-${dateStr}-evening`);
+        dots.push(!!(mr || er));
+        if (er) sparkline.push({ v: JSON.parse(er).value });
+        else if (mr) sparkline.push({ v: JSON.parse(mr).value });
+      } catch { dots.push(false); }
+    }
+    setWeekDots(dots);
+    setMoodSparkline(sparkline);
 
     const today = new Date().toISOString().split("T")[0];
     try {
@@ -326,18 +345,24 @@ export default function TodayPage() {
             </div>
             <div className="flex flex-col items-center justify-center gap-1.5">
               <div className="flex gap-1">
-                {WEEK_DOTS.map((d, i) => (
+                {weekDots.map((d, i) => (
                   <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: d ? "#1C1C1E" : "transparent", border: `1.5px solid ${d ? "#1C1C1E" : "var(--border)"}` }} />
                 ))}
               </div>
               <span className="text-[10px]" style={{ color: "var(--muted)" }}>This week</span>
             </div>
             <div className="flex flex-col items-center justify-center gap-1.5">
-              <ResponsiveContainer width="100%" height={36}>
-                <LineChart data={MOOD_SPARKLINE} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-                  <Line type="monotone" dataKey="v" stroke="#1C1C1E" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
+              {moodSparkline.length > 1 ? (
+                <ResponsiveContainer width="100%" height={36}>
+                  <LineChart data={moodSparkline} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                    <Line type="monotone" dataKey="v" stroke="#1C1C1E" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{ height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span className="text-[10px]" style={{ color: "var(--border)" }}>No data yet</span>
+                </div>
+              )}
               <span className="text-[10px]" style={{ color: "var(--muted)" }}>Mood</span>
             </div>
           </div>
