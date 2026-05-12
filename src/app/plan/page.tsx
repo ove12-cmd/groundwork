@@ -4,6 +4,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { PHASES, PENDING_ONBOARDING_KEY, type UserPlan, type PlanStatus } from "@/lib/mock-data";
+
+function computePhases(totalDays: number) {
+  const a = Math.floor(totalDays / 3);
+  const b = Math.floor((2 * totalDays) / 3);
+  return PHASES.map((phase, i) => ({
+    ...phase,
+    days: i === 0 ? `Days 1–${a}` : i === 1 ? `Days ${a + 1}–${b}` : `Days ${b + 1}–${totalDays}`,
+  }));
+}
 import { createClient } from "@/lib/supabase/client";
 
 const LOADING_MESSAGES = [
@@ -221,7 +230,9 @@ export default function PlanPage() {
             setPlans(mapped);
             const active = data.find((p) => p.is_active) ?? data[0];
             setActivePlanId(active.id);
-            setSelectedPlanId(active.id);
+            const storedSelected = sessionStorage.getItem("groundwork-selected-plan");
+            const restoredId = storedSelected && mapped.find(p => p.id === storedSelected) ? storedSelected : active.id;
+            setSelectedPlanId(restoredId);
             const summaries: Record<string, string | null> = {};
             data.forEach(p => { summaries[p.id] = p.summary ?? p.goal ?? null; });
             setPlanSummaries(summaries);
@@ -355,7 +366,7 @@ export default function PlanPage() {
                   key={plan.id}
                   plan={plan}
                   isSelected={plan.id === selectedPlanId}
-                  onClick={() => setSelectedPlanId(plan.id)}
+                  onClick={() => { setSelectedPlanId(plan.id); sessionStorage.setItem("groundwork-selected-plan", plan.id); }}
                   onMenu={() => setSheetPlanId(plan.id)}
                 />
               ))}
@@ -377,7 +388,7 @@ export default function PlanPage() {
 
           {/* Phase cards */}
           <div className="flex flex-col gap-3">
-            {PHASES.map((phase, i) => (
+            {computePhases(selectedPlan.totalDays).map((phase, i) => (
               <div
                 key={phase.name}
                 className="rounded-2xl p-4 card-rise"
