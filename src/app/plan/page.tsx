@@ -139,7 +139,7 @@ export default function PlanPage() {
   const [activePlanId, setActivePlanId] = useState(ACTIVE_PLAN_ID);
   const [selectedPlanId, setSelectedPlanId] = useState(ACTIVE_PLAN_ID);
   const [sheetPlanId, setSheetPlanId] = useState<string | null>(null);
-  const [activePlanSummary, setActivePlanSummary] = useState<string | null>(null);
+  const [planSummaries, setPlanSummaries] = useState<Record<string, string | null>>({});
   const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
@@ -195,14 +195,16 @@ export default function PlanPage() {
           const active = data.find((p) => p.is_active) ?? data[0];
           setActivePlanId(active.id);
           setSelectedPlanId(active.id);
-          setActivePlanSummary(active.summary ?? active.goal ?? null);
+          const summaries: Record<string, string | null> = {};
+          data.forEach(p => { summaries[p.id] = p.summary ?? p.goal ?? null; });
+          setPlanSummaries(summaries);
         });
     });
   }, []);
 
   if (generating) return <PlanGeneratingScreen />;
 
-  const activePlan = plans.find((p) => p.id === activePlanId) ?? plans[0];
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? plans[0];
   const sheetPlan = plans.find((p) => p.id === sheetPlanId) ?? null;
 
   const handleSheetAction = (actionId: string) => {
@@ -269,16 +271,16 @@ export default function PlanPage() {
             </div>
           )}
 
-          {/* Active plan overview */}
+          {/* Selected plan overview */}
           <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--muted)" }}>
             Your Plan
           </p>
           <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
-            {activePlan.focusArea} — {activePlan.totalDays} Days
+            {selectedPlan.focusArea} — {selectedPlan.totalDays} Days
           </h1>
-          {activePlanSummary && (
+          {planSummaries[selectedPlanId] && (
             <p className="text-sm mb-8 leading-relaxed" style={{ color: "var(--muted)" }}>
-              {activePlanSummary}
+              {planSummaries[selectedPlanId]}
             </p>
           )}
 
@@ -316,7 +318,7 @@ export default function PlanPage() {
         >
           <button
             type="button"
-            onClick={() => router.push("/plan/days")}
+            onClick={() => router.push(`/plan/days?planId=${selectedPlanId}`)}
             className="w-full py-4 rounded-2xl text-base font-semibold"
             style={{ background: "#1C1C1E", color: "#ffffff" }}
           >
