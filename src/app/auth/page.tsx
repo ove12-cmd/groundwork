@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { AI_PLAN_KEY } from "@/lib/mock-data";
@@ -19,26 +19,63 @@ function GoogleIcon() {
   );
 }
 
+function EyeIcon({ visible }: { visible: boolean }) {
+  return visible ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  );
+}
+
 function InputField({
   label, type, placeholder, value, onChange,
 }: {
   label: string; type: string; placeholder: string; value: string; onChange: (v: string) => void;
 }) {
+  const [showPw, setShowPw] = useState(false);
+  const isPassword = type === "password";
+  const inputRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-xs font-semibold" style={{ color: "var(--muted)" }}>{label}</label>
-      <input
-        type={type} placeholder={placeholder} value={value}
-        onChange={(e) => onChange(e.target.value)}
-        autoComplete={type === "password" ? "current-password" : type === "email" ? "email" : "name"}
-        style={{
-          background: "var(--card)", color: "var(--foreground)",
-          border: "1.5px solid var(--border)", borderRadius: 14,
-          padding: "13px 16px", fontSize: 15, fontFamily: "inherit", outline: "none", width: "100%",
-        }}
-        onFocus={(e) => (e.currentTarget.style.borderColor = "#1C1C1E")}
-        onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
-      />
+      <div style={{ position: "relative" }}>
+        <input
+          ref={inputRef}
+          type={isPassword ? (showPw ? "text" : "password") : type}
+          placeholder={placeholder} value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete={isPassword ? "current-password" : type === "email" ? "email" : "name"}
+          style={{
+            background: "var(--card)", color: "var(--foreground)",
+            border: "1.5px solid var(--border)", borderRadius: 14,
+            padding: isPassword ? "13px 44px 13px 16px" : "13px 16px",
+            fontSize: 15, fontFamily: "inherit", outline: "none", width: "100%",
+          }}
+          onFocus={(e) => (e.currentTarget.style.borderColor = "#1C1C1E")}
+          onBlur={(e) => (e.currentTarget.style.borderColor = "var(--border)")}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => { setShowPw(v => !v); inputRef.current?.focus(); }}
+            style={{
+              position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
+              background: "none", border: "none", cursor: "pointer", color: "var(--muted)",
+              display: "flex", alignItems: "center", padding: 0,
+            }}
+            tabIndex={-1}
+            aria-label={showPw ? "Hide password" : "Show password"}
+          >
+            <EyeIcon visible={showPw} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -85,9 +122,13 @@ export default function AuthPage() {
     setLoading(true);
     try {
       if (isSignup) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } });
         if (error) { setError(error.message); return; }
         if (data.user) {
+          if (name) {
+            try { localStorage.setItem("groundwork-user-name", name); } catch { /* ignore */ }
+            supabase.from("profiles").upsert({ id: data.user.id, name }).then(() => {});
+          }
           await savePendingPlan(supabase, data.user.id);
           if (data.session) {
             router.push("/plan");
@@ -99,6 +140,12 @@ export default function AuthPage() {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) { setError(error.message); return; }
         if (data.user) {
+          // Cache name from profile if not already stored
+          const storedName = localStorage.getItem("groundwork-user-name");
+          if (!storedName) {
+            supabase.from("profiles").select("name").eq("id", data.user.id).maybeSingle()
+              .then(({ data: p }) => { if (p?.name) { try { localStorage.setItem("groundwork-user-name", p.name); } catch { /* ignore */ } } });
+          }
           await savePendingPlan(supabase, data.user.id);
           router.push("/plan");
         }

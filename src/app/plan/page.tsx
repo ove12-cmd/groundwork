@@ -3,8 +3,43 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { PHASES, USER_PLANS, ACTIVE_PLAN_ID, type UserPlan, type PlanStatus } from "@/lib/mock-data";
+import { PHASES, USER_PLANS, ACTIVE_PLAN_ID, PENDING_ONBOARDING_KEY, type UserPlan, type PlanStatus } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
+
+const LOADING_MESSAGES = [
+  "Reading your responses…",
+  "Understanding your patterns…",
+  "Designing your first week…",
+  "Building daily tasks for you…",
+  "Adding habits that fit your life…",
+  "Putting the finishing touches…",
+];
+
+function PlanGeneratingScreen() {
+  const [msgIndex, setMsgIndex] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setMsgIndex(i => (i + 1) % LOADING_MESSAGES.length), 1800);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="fixed inset-0 flex justify-center items-center" style={{ background: "var(--background)" }}>
+      <div className="flex flex-col items-center gap-6 px-8 text-center">
+        <div className="flex gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="loading-dot" style={{ animationDelay: `${i * 0.22}s` }} />
+          ))}
+        </div>
+        <AnimatePresence mode="wait">
+          <motion.p key={msgIndex} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }} className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
+            {LOADING_MESSAGES[msgIndex]}
+          </motion.p>
+        </AnimatePresence>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>Usually takes 15–20 seconds</p>
+      </div>
+    </div>
+  );
+}
 
 const PHASE_COLORS: Record<string, string> = {
   Awareness: "var(--accent-recharge)",
@@ -105,11 +140,46 @@ export default function PlanPage() {
   const [selectedPlanId, setSelectedPlanId] = useState(ACTIVE_PLAN_ID);
   const [sheetPlanId, setSheetPlanId] = useState<string | null>(null);
   const [activePlanSummary, setActivePlanSummary] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
+
+      // Generate plan from pending onboarding data if present
+      const pendingRaw = localStorage.getItem(PENDING_ONBOARDING_KEY);
+      if (pendingRaw) {
+        setGenerating(true);
+        try {
+          const { focus, goal, questionsAndAnswers, duration } = JSON.parse(pendingRaw);
+          const res = await fetch("/api/onboarding/generate-plan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ focus, goal, questionsAndAnswers, duration }),
+          });
+          if (res.ok) {
+            const plan = await res.json();
+            await supabase.from("plans").insert({
+              user_id: user.id,
+              name: plan.planName ?? focus ?? "My Plan",
+              focus_area: focus,
+              summary: plan.summary,
+              goal,
+              total_days: duration ?? 30,
+              completed_days: 0,
+              status: "active",
+              plan_days: plan.days,
+              habits: plan.habits,
+              is_active: true,
+            });
+          }
+        } catch { /* ignore, load existing plans below */ } finally {
+          localStorage.removeItem(PENDING_ONBOARDING_KEY);
+          setGenerating(false);
+        }
+      }
+
       supabase.from("plans").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
         .then(({ data }) => {
           if (!data?.length) return;
@@ -129,6 +199,8 @@ export default function PlanPage() {
         });
     });
   }, []);
+
+  if (generating) return <PlanGeneratingScreen />;
 
   const activePlan = plans.find((p) => p.id === activePlanId) ?? plans[0];
   const sheetPlan = plans.find((p) => p.id === sheetPlanId) ?? null;

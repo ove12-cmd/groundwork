@@ -10,6 +10,7 @@ import {
   computeStreak,
   computeTasksDone,
 } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 
 const currentDay = TODAY_DAY;
 const streak = computeStreak(COMPLETED_DAYS, TODAY_DAY);
@@ -67,8 +68,14 @@ export default function ProfilePage() {
   const [notifEnabled, setNotifEnabled] = useState(false);
   const [notifTime, setNotifTime] = useState("09:00");
   const [hydrated, setHydrated] = useState(false);
+  const [firstName, setFirstName] = useState<string | null>(null);
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem("groundwork-user-name");
+      if (stored) setFirstName(stored.split(" ")[0]);
+    } catch { /* ignore */ }
+
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -98,7 +105,7 @@ export default function ProfilePage() {
       <div className="px-5 pt-8 pb-4">
 
         <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
-          Profile
+          {firstName ? firstName : "Profile"}
         </h1>
         <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
           Social Anxiety · 30-day plan
@@ -226,6 +233,18 @@ export default function ProfilePage() {
           style={{ background: "var(--card)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
         >
           Start a new plan
+        </button>
+
+        <button
+          type="button"
+          onClick={async () => {
+            await createClient().auth.signOut();
+            router.push("/auth");
+          }}
+          className="w-full py-4 rounded-2xl text-base font-semibold mt-3"
+          style={{ background: "transparent", color: "#c0392b", border: "1.5px solid var(--border)" }}
+        >
+          Log out
         </button>
       </div>
     </Shell>

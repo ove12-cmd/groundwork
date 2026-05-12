@@ -404,6 +404,7 @@ export const WEEKLY_REVIEWS: WeeklyReview[] = [
 // ── AI-generated plan ──────────────────────────────────────────────────────────
 
 export const AI_PLAN_KEY = "groundwork-ai-plan";
+export const PENDING_ONBOARDING_KEY = "groundwork-pending-onboarding";
 
 export interface AIPlan {
   planName: string;

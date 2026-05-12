@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FocusArea } from "@/lib/mock-data";
-import { AI_PLAN_KEY } from "@/lib/mock-data";
+import { PENDING_ONBOARDING_KEY } from "@/lib/mock-data";
 import BottomNav from "@/components/BottomNav";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -235,7 +235,6 @@ export default function OnboardingPage() {
   const [goalText, setGoalText] = useState("");
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
   const [duration, setDuration] = useState(30);
-  const [loading, setLoading] = useState(false);
   const [isReturning, setIsReturning] = useState(false);
   const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>([]);
   const [questionLoading, setQuestionLoading] = useState(false);
@@ -248,11 +247,14 @@ export default function OnboardingPage() {
   const focusKey = focus ?? "write-myself";
   const fallbackQuestions = FALLBACK_QUESTIONS[focusKey] ?? FALLBACK_QUESTIONS["write-myself"];
 
-  // Progress: 0=focus,1=goal, then questions, then duration. Estimate total as 2+questions+1=up to 9
-  const estimatedTotal = 2 + Math.max(dynamicQuestions.length + 1, 3) + 1;
+  // Progress based only on step — never decreases when new questions load
   const progressPct = showDuration
-    ? 95
-    : Math.min(95, ((step + 1) / estimatedTotal) * 100);
+    ? 90
+    : step === 0
+      ? 8
+      : step === 1
+        ? 18
+        : Math.min(85, 20 + ((step - 1) / (MAX_QUESTIONS + 1)) * 65);
 
   const fetchQuestion = async (qi: number) => {
     const previousQA = Array.from({ length: qi }, (_, i) => ({
@@ -330,35 +332,21 @@ export default function OnboardingPage() {
     setStep(s => s - 1);
   };
 
-  const handleBuildPlan = async () => {
-    setLoading(true);
-    try { localStorage.setItem(ONBOARDING_FLAG, "true"); } catch { /* ignore */ }
-
-    const questionsAndAnswers = dynamicQuestions.map((q, i) => ({
-      question: q.text,
-      answers: answers[i] ?? [],
-    }));
-
+  const handleBuildPlan = () => {
     try {
-      const res = await fetch("/api/onboarding/generate-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ focus: focusKey, goal: goalText, questionsAndAnswers, duration }),
-      });
-      if (res.ok) {
-        const plan = await res.json();
-        try {
-          localStorage.setItem(AI_PLAN_KEY, JSON.stringify({
-            ...plan, focusArea: focusKey, totalDays: duration, goal: goalText, createdAt: new Date().toISOString(),
-          }));
-        } catch { /* ignore */ }
-      }
-    } catch { /* fall back to mock plan */ }
-
+      localStorage.setItem(ONBOARDING_FLAG, "true");
+      localStorage.setItem(PENDING_ONBOARDING_KEY, JSON.stringify({
+        focus: focusKey,
+        goal: goalText,
+        questionsAndAnswers: dynamicQuestions.map((q, i) => ({
+          question: q.text,
+          answers: answers[i] ?? [],
+        })),
+        duration,
+      }));
+    } catch { /* ignore */ }
     router.push("/auth");
   };
-
-  if (loading) return <LoadingScreen />;
 
   const renderStep = () => {
     // ── Step 0: Focus area ────────────────────────────────────────────────────
@@ -507,7 +495,7 @@ export default function OnboardingPage() {
       return (
         <div className="px-6 pt-12 pb-10">
           <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
-            Question {qi + 1}
+            Question {qi + 1} / {MAX_QUESTIONS}
           </p>
           <h2 className="text-xl font-bold mb-2"
             style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif", color: "var(--foreground)", lineHeight: 1.3 }}>

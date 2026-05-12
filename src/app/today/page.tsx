@@ -6,12 +6,10 @@ import Shell from "@/components/Shell";
 import { HabitIconSvg } from "@/components/HabitIcon";
 import { ResponsiveContainer, LineChart, Line } from "recharts";
 import {
-  PLAN_DAYS, TODAY_DAY, JOURNAL_PROMPT,
-  USER_PLANS, ACTIVE_PLAN_ID,
-  FOCUS_AREA_TRACKING_LABEL,
-  MOCK_MY_HABITS, WEEKLY_REVIEWS,
+  JOURNAL_PROMPT, WEEKLY_REVIEWS,
   type Habit,
 } from "@/lib/mock-data";
+import { useActivePlan } from "@/lib/useActivePlan";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -29,9 +27,6 @@ const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
 
 const TODAY_DATE = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
-const TOTAL_DAYS = 30;
-const COMPLETED_COUNT = 14;
-const COMPLETION_PCT = Math.round((COMPLETED_COUNT / TOTAL_DAYS) * 100);
 const RING_SIZE = 64;
 const STROKE = 6;
 const RADIUS = (RING_SIZE - STROKE) / 2;
@@ -41,9 +36,9 @@ const MOOD_SPARKLINE = [{ v: 2 }, { v: 3 }, { v: 2 }, { v: 4 }, { v: 3 }, { v: 4
 
 function greeting() {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning.";
-  if (h < 17) return "Good afternoon.";
-  return "Good evening.";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
 
 // ── Tracker card ──────────────────────────────────────────────────────────────
@@ -143,11 +138,7 @@ function TrackerCard({
 
 export default function TodayPage() {
   const router = useRouter();
-  const todayData = PLAN_DAYS.find((d) => d.day === TODAY_DAY)!;
-  const activePlan = USER_PLANS.find((p) => p.id === ACTIVE_PLAN_ID);
-  const trackingLabel = activePlan
-    ? (FOCUS_AREA_TRACKING_LABEL[activePlan.focusArea] ?? "Anxiety level")
-    : "Anxiety level";
+  const { plan, currentDay, todayData, trackingLabel, completionPct } = useActivePlan();
 
   // Task state
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -168,8 +159,14 @@ export default function TodayPage() {
   const [showReviewBanner, setShowReviewBanner] = useState(false);
 
   const [hydrated, setHydrated] = useState(false);
+  const [firstName, setFirstName] = useState<string | null>(null);
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem("groundwork-user-name");
+      if (stored) setFirstName(stored.split(" ")[0]);
+    } catch { /* ignore */ }
+
     const today = new Date().toISOString().split("T")[0];
     try {
       const m = localStorage.getItem(`groundwork-track-${today}-morning`);
@@ -180,10 +177,10 @@ export default function TodayPage() {
 
     try {
       const h = localStorage.getItem("groundwork-habits");
-      setHabits(h ? JSON.parse(h) : MOCK_MY_HABITS);
+      setHabits(h ? JSON.parse(h) : []);
       const log = localStorage.getItem(`groundwork-habit-log-${today}`);
       setHabitLog(log ? JSON.parse(log) : {});
-    } catch { setHabits(MOCK_MY_HABITS); }
+    } catch { setHabits([]); }
 
     try {
       const latest = WEEKLY_REVIEWS[WEEKLY_REVIEWS.length - 1];
@@ -196,9 +193,10 @@ export default function TodayPage() {
     setHydrated(true);
   }, []);
 
-  const total = todayData.tasks.length;
+  const total = todayData?.tasks.length ?? 0;
   const done = Object.values(checked).filter(Boolean).length;
   const progress = total > 0 ? (done / total) * 100 : 0;
+  const totalDays = plan?.totalDays ?? 30;
   const hour = new Date().getHours();
 
   const toggle = (id: string) => {
@@ -276,12 +274,12 @@ export default function TodayPage() {
             className="text-xs font-semibold px-2.5 py-1 rounded-full"
             style={{ background: "var(--card)", color: "var(--green)", border: "1px solid var(--border)" }}
           >
-            Day {TODAY_DAY} of 30
+            Day {currentDay} of {totalDays}
           </span>
         </div>
 
         <h1 className="text-2xl font-semibold mb-1 mt-2" style={{ color: "var(--foreground)" }}>
-          {greeting()}
+          {greeting()}{firstName ? ` ${firstName}.` : ""}
         </h1>
         <p className="text-sm mb-6" style={{ color: "var(--muted)" }}>
           Small steps, taken consistently, change everything.
@@ -318,10 +316,10 @@ export default function TodayPage() {
                 <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} fill="none" stroke="var(--border)" strokeWidth={STROKE} />
                 <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} fill="none" stroke="#1C1C1E" strokeWidth={STROKE}
                   strokeLinecap="round" strokeDasharray={CIRCUMFERENCE}
-                  strokeDashoffset={CIRCUMFERENCE - (COMPLETION_PCT / 100) * CIRCUMFERENCE} />
+                  strokeDashoffset={CIRCUMFERENCE - (completionPct / 100) * CIRCUMFERENCE} />
                 <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle"
                   style={{ transform: "rotate(90deg)", transformOrigin: "center", fontFamily: "var(--font-playfair), 'Playfair Display', serif", fontSize: 14, fontWeight: 700, fill: "var(--foreground)" }}>
-                  {COMPLETION_PCT}%
+                  {completionPct}%
                 </text>
               </svg>
               <span className="text-[10px]" style={{ color: "var(--muted)" }}>Plan</span>
@@ -374,7 +372,13 @@ export default function TodayPage() {
             You've got this. {total} {total === 1 ? "task" : "tasks"} today.
           </p>
 
-          {done === total ? (
+          {!todayData ? (
+            <div className="flex flex-col gap-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="skeleton rounded-xl h-16" />
+              ))}
+            </div>
+          ) : done === total && total > 0 ? (
             <div className="py-4 flex flex-col items-center text-center gap-2">
               <p className="text-2xl font-bold" style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif", color: "var(--foreground)" }}>
                 All done for today 🎉
@@ -383,7 +387,7 @@ export default function TodayPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {todayData.tasks.map((task) => {
+              {(todayData?.tasks ?? []).map((task) => {
                 const isChecked = !!checked[task.id];
                 const colors = TYPE_COLORS[task.type];
                 const wasJustChecked = justChecked === task.id;

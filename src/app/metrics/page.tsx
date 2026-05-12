@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Shell from "@/components/Shell";
 import { HabitIconSvg } from "@/components/HabitIcon";
@@ -8,14 +8,9 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
 } from "recharts";
 import {
-  TRACKING_DATA, MOCK_MY_HABITS, MOCK_HABIT_COMPLETIONS, WEEKLY_REVIEWS,
+  TRACKING_DATA, WEEKLY_REVIEWS, type Habit,
 } from "@/lib/mock-data";
-
-// ── Static mock data ──────────────────────────────────────────────────────────
-
-const TOTAL_DAYS = 30;
-const COMPLETED_COUNT = 14;
-const COMPLETION_PCT = Math.round((COMPLETED_COUNT / TOTAL_DAYS) * 100);
+import { useActivePlan } from "@/lib/useActivePlan";
 
 const WEEK_DAYS = [
   { label: "M", done: true }, { label: "T", done: true }, { label: "W", done: true },
@@ -70,7 +65,7 @@ function TrackingTooltip({ active, payload, label }: { active?: boolean; payload
 
 // ── Progress ring ─────────────────────────────────────────────────────────────
 
-function ProgressRing({ pct }: { pct: number }) {
+function ProgressRing({ pct, totalDays }: { pct: number; totalDays: number }) {
   const offset = CIRCUMFERENCE - (pct / 100) * CIRCUMFERENCE;
   return (
     <div className="flex flex-col items-center gap-2">
@@ -85,7 +80,7 @@ function ProgressRing({ pct }: { pct: number }) {
           {pct}%
         </text>
       </svg>
-      <p className="text-sm" style={{ color: "var(--muted)" }}>of {TOTAL_DAYS} days completed</p>
+      <p className="text-sm" style={{ color: "var(--muted)" }}>of {totalDays} days completed</p>
     </div>
   );
 }
@@ -95,6 +90,33 @@ function ProgressRing({ pct }: { pct: number }) {
 export default function MetricsPage() {
   const router = useRouter();
   const [timeRange, setTimeRange] = useState<TimeRange>("1m");
+  const { plan, completionPct } = useActivePlan();
+
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitGrid, setHabitGrid] = useState<Record<string, boolean[]>>({});
+
+  useEffect(() => {
+    const raw = localStorage.getItem("groundwork-habits");
+    const loadedHabits: Habit[] = raw ? JSON.parse(raw) : [];
+    setHabits(loadedHabits);
+
+    const today = new Date();
+    const grid: Record<string, boolean[]> = {};
+    for (const habit of loadedHabits) {
+      grid[habit.id] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - i);
+        const dateStr = d.toISOString().split("T")[0];
+        try {
+          const log = localStorage.getItem(`groundwork-habit-log-${dateStr}`);
+          const dayLog: Record<string, boolean> = log ? JSON.parse(log) : {};
+          grid[habit.id].push(!!dayLog[habit.id]);
+        } catch { grid[habit.id].push(false); }
+      }
+    }
+    setHabitGrid(grid);
+  }, []);
 
   const sliced = TRACKING_DATA.slice(-RANGE_SLICE[timeRange]);
   const tickInterval = RANGE_TICK[timeRange];
@@ -157,7 +179,7 @@ export default function MetricsPage() {
 
         {/* Progress ring */}
         <div className="rounded-2xl p-6 mb-6 flex justify-center" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          <ProgressRing pct={COMPLETION_PCT} />
+          <ProgressRing pct={completionPct} totalDays={plan?.totalDays ?? 30} />
         </div>
 
         {/* 7-day streak */}
@@ -255,36 +277,48 @@ export default function MetricsPage() {
           <p className="text-[11px] font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
             Habit consistency
           </p>
-          <div className="flex flex-col gap-4">
-            {MOCK_MY_HABITS.map((habit) => {
-              const grid = MOCK_HABIT_COMPLETIONS[habit.id] ?? Array(7).fill(false);
-              const completed = grid.filter(Boolean).length;
-              const rate = Math.round((completed / 7) * 100);
-              return (
-                <div key={habit.id}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span style={{ color: "var(--muted)" }}><HabitIconSvg icon={habit.icon} size={14} /></span>
-                      <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{habit.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px]" style={{ color: "var(--muted)" }}>🔥 {habit.streak}</span>
-                      <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>{rate}%</span>
-                    </div>
-                  </div>
-                  <div className="flex gap-1">
-                    {grid.map((done, i) => (
-                      <div key={i} className="flex flex-col items-center gap-1" style={{ flex: 1 }}>
-                        <div style={{ height: 20, borderRadius: 4,
-                          background: done ? "#1C1C1E" : "var(--border)", width: "100%" }} />
-                        <span className="text-[9px]" style={{ color: "var(--muted)" }}>{DAY_LABELS[i]}</span>
+          {habits.length === 0 ? (
+            <p className="text-sm py-1" style={{ color: "var(--muted)" }}>
+              No habits tracked yet.{" "}
+              <button type="button" onClick={() => router.push("/habits")}
+                style={{ color: "var(--foreground)", fontWeight: 600, background: "none", border: "none", cursor: "pointer" }}>
+                Add some →
+              </button>
+            </p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {habits.map((habit) => {
+                const grid = habitGrid[habit.id] ?? Array(7).fill(false);
+                const completed = grid.filter(Boolean).length;
+                const rate = Math.round((completed / 7) * 100);
+                return (
+                  <div key={habit.id}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span style={{ color: "var(--muted)" }}><HabitIconSvg icon={habit.icon} size={14} /></span>
+                        <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{habit.name}</span>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2">
+                        {habit.streak > 0 && (
+                          <span className="text-[10px]" style={{ color: "var(--muted)" }}>🔥 {habit.streak}</span>
+                        )}
+                        <span className="text-[10px] font-semibold" style={{ color: "var(--muted)" }}>{rate}%</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      {grid.map((done, i) => (
+                        <div key={i} className="flex flex-col items-center gap-1" style={{ flex: 1 }}>
+                          <div style={{ height: 20, borderRadius: 4,
+                            background: done ? "#1C1C1E" : "var(--border)", width: "100%" }} />
+                          <span className="text-[9px]" style={{ color: "var(--muted)" }}>{DAY_LABELS[i]}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Milestones */}
