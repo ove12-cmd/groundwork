@@ -51,6 +51,7 @@ export default function ProfilePage() {
   const [hydrated, setHydrated] = useState(false);
   const [firstName, setFirstName] = useState<string | null>(null);
 
+  const [email, setEmail] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [planLoading, setPlanLoading] = useState(true);
 
@@ -99,6 +100,7 @@ export default function ProfilePage() {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { setPlanLoading(false); return; }
+      setEmail(user.email ?? null);
       supabase.from("plans").select("id, name, focus_area, total_days, completed_days, status, goal, created_at, is_active")
         .eq("user_id", user.id).order("created_at", { ascending: false })
         .then(({ data }) => {
@@ -152,10 +154,16 @@ export default function ProfilePage() {
         <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
           {firstName ? firstName : "Profile"}
         </h1>
-        {subtitle && (
-          <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>{subtitle}</p>
-        )}
-        {!subtitle && <div className="mb-8" />}
+        <div className="mb-8">
+          {subtitle && (
+            <p className="text-sm" style={{ color: "var(--muted)" }}>{subtitle}</p>
+          )}
+          {email && (
+            <p className="text-xs mt-1" style={{ color: "var(--muted)", opacity: 0.6 }}>
+              Logged in as {email}
+            </p>
+          )}
+        </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-8">
