@@ -15,12 +15,30 @@ const LOADING_MESSAGES = [
   "Putting the finishing touches…",
 ];
 
-function PlanGeneratingScreen() {
+function PlanGeneratingScreen({ error, onRetry }: { error: boolean; onRetry: () => void }) {
   const [msgIndex, setMsgIndex] = useState(0);
   useEffect(() => {
+    if (error) return;
     const t = setInterval(() => setMsgIndex(i => (i + 1) % LOADING_MESSAGES.length), 1800);
     return () => clearInterval(t);
-  }, []);
+  }, [error]);
+
+  if (error) {
+    return (
+      <div className="fixed inset-0 flex justify-center items-center" style={{ background: "var(--background)", zIndex: 60 }}>
+        <div className="flex flex-col items-center gap-4 px-8 text-center">
+          <p className="text-base font-semibold" style={{ color: "var(--foreground)" }}>Something went wrong</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>We couldn't generate your plan. Please try again.</p>
+          <button type="button" onClick={onRetry}
+            className="mt-2 px-6 py-3 rounded-2xl text-sm font-semibold"
+            style={{ background: "#1C1C1E", color: "#fff", border: "none", cursor: "pointer" }}>
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 flex justify-center items-center" style={{ background: "var(--background)", zIndex: 60 }}>
       <div className="flex flex-col items-center gap-6 px-8 text-center">
@@ -142,6 +160,7 @@ export default function PlanPage() {
   const [sheetPlanId, setSheetPlanId] = useState<string | null>(null);
   const [planSummaries, setPlanSummaries] = useState<Record<string, string | null>>({});
   const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -152,6 +171,8 @@ export default function PlanPage() {
       const pendingRaw = localStorage.getItem(PENDING_ONBOARDING_KEY);
       if (pendingRaw) {
         setGenerating(true);
+        setGenerateError(false);
+        let succeeded = false;
         try {
           const { focus, goal, questionsAndAnswers, duration } = JSON.parse(pendingRaw);
           const res = await fetch("/api/onboarding/generate-plan", {
@@ -161,7 +182,7 @@ export default function PlanPage() {
           });
           if (res.ok) {
             const plan = await res.json();
-            await supabase.from("plans").insert({
+            const { error: insertError } = await supabase.from("plans").insert({
               user_id: user.id,
               name: plan.planName ?? focus ?? "My Plan",
               focus_area: focus,
@@ -174,9 +195,14 @@ export default function PlanPage() {
               habits: plan.habits,
               is_active: true,
             });
+            if (!insertError) succeeded = true;
           }
-        } catch { /* ignore, load existing plans below */ } finally {
-          localStorage.removeItem(PENDING_ONBOARDING_KEY);
+        } catch { /* network or parse error */ } finally {
+          if (succeeded) {
+            localStorage.removeItem(PENDING_ONBOARDING_KEY);
+          } else {
+            setGenerateError(true);
+          }
           setGenerating(false);
         }
       }
@@ -205,7 +231,52 @@ export default function PlanPage() {
     });
   }, []);
 
-  if (generating) return <PlanGeneratingScreen />;
+  const retryGeneration = () => {
+    setGenerateError(false);
+    setGenerating(true);
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setGenerating(false); return; }
+      const pendingRaw = localStorage.getItem(PENDING_ONBOARDING_KEY);
+      if (!pendingRaw) { setGenerating(false); return; }
+      let succeeded = false;
+      try {
+        const { focus, goal, questionsAndAnswers, duration } = JSON.parse(pendingRaw);
+        const res = await fetch("/api/onboarding/generate-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ focus, goal, questionsAndAnswers, duration }),
+        });
+        if (res.ok) {
+          const plan = await res.json();
+          const { error: insertError } = await supabase.from("plans").insert({
+            user_id: user.id,
+            name: plan.planName ?? focus ?? "My Plan",
+            focus_area: focus,
+            summary: plan.summary,
+            goal,
+            total_days: duration ?? 30,
+            completed_days: 0,
+            status: "active",
+            plan_days: plan.days,
+            habits: plan.habits,
+            is_active: true,
+          });
+          if (!insertError) succeeded = true;
+        }
+      } catch { /* ignore */ } finally {
+        if (succeeded) {
+          localStorage.removeItem(PENDING_ONBOARDING_KEY);
+          window.location.reload();
+        } else {
+          setGenerateError(true);
+          setGenerating(false);
+        }
+      }
+    });
+  };
+
+  if (generating || generateError) return <PlanGeneratingScreen error={generateError} onRetry={retryGeneration} />;
 
   const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? plans[0] ?? null;
   const sheetPlan = plans.find((p) => p.id === sheetPlanId) ?? null;
