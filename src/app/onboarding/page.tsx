@@ -237,12 +237,14 @@ export default function OnboardingPage() {
   const [answers, setAnswers] = useState<Record<number, string[]>>({});
   const [duration, setDuration] = useState(30);
   const [isReturning, setIsReturning] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
   const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>([]);
   const [questionLoading, setQuestionLoading] = useState(false);
   const [showDuration, setShowDuration] = useState(false);
 
   useEffect(() => {
     try { setIsReturning(localStorage.getItem(ONBOARDING_FLAG) === "true"); } catch { /* ignore */ }
+    createClient().auth.getUser().then(({ data: { user } }) => setLoggedIn(!!user));
   }, []);
 
   const focusKey = focus ?? "write-myself";
@@ -563,7 +565,7 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex justify-center min-h-screen" style={{ background: "var(--background)" }}>
-      {isReturning && <BottomNav />}
+      {loggedIn && <BottomNav />}
       <div className="w-full max-w-[390px] min-h-screen flex flex-col relative"
         style={{ overflowX: "hidden", paddingBottom: isReturning ? 72 : 0 }}>
 
