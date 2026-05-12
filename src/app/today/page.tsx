@@ -136,7 +136,7 @@ function TrackerCard({
 
 export default function TodayPage() {
   const router = useRouter();
-  const { plan, currentDay, todayData, trackingLabel, completionPct } = useActivePlan();
+  const { loading: planLoading, plan, currentDay, todayData, trackingLabel, completionPct } = useActivePlan();
 
   // Task state
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -318,55 +318,72 @@ export default function TodayPage() {
           </div>
         </div>
 
-        {/* Progress snapshot */}
-        <button
-          type="button"
-          onClick={() => router.push("/metrics")}
-          className="w-full rounded-2xl px-4 py-3 mb-5 text-left"
-          style={{ background: "var(--card)", border: "1px solid var(--border)", cursor: "pointer" }}
-        >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "var(--muted)" }}>Progress</span>
-            <span className="text-[11px] font-medium" style={{ color: "var(--muted)" }}>View all →</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <div className="flex flex-col items-center gap-1.5">
-              <svg width={RING_SIZE} height={RING_SIZE} style={{ transform: "rotate(-90deg)" }}>
-                <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} fill="none" stroke="var(--border)" strokeWidth={STROKE} />
-                <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} fill="none" stroke="#1C1C1E" strokeWidth={STROKE}
-                  strokeLinecap="round" strokeDasharray={CIRCUMFERENCE}
-                  strokeDashoffset={CIRCUMFERENCE - (completionPct / 100) * CIRCUMFERENCE} />
-                <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle"
-                  style={{ transform: "rotate(90deg)", transformOrigin: "center", fontFamily: "var(--font-playfair), 'Playfair Display', serif", fontSize: 14, fontWeight: 700, fill: "var(--foreground)" }}>
-                  {completionPct}%
-                </text>
-              </svg>
-              <span className="text-[10px]" style={{ color: "var(--muted)" }}>Plan</span>
+        {/* Progress snapshot / Create plan CTA */}
+        {!planLoading && !plan ? (
+          <button
+            type="button"
+            onClick={() => router.push("/onboarding")}
+            className="w-full rounded-2xl px-4 py-4 mb-5 text-left flex items-center justify-between"
+            style={{ background: "var(--card)", border: "1.5px dashed var(--border)", cursor: "pointer" }}
+          >
+            <div>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>Create your plan</p>
+              <p className="text-xs" style={{ color: "var(--muted)" }}>Get a personalised day-by-day plan</p>
             </div>
-            <div className="flex flex-col items-center justify-center gap-1.5">
-              <div className="flex gap-1">
-                {weekDots.map((d, i) => (
-                  <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: d ? "#1C1C1E" : "transparent", border: `1.5px solid ${d ? "#1C1C1E" : "var(--border)"}` }} />
-                ))}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--muted)", flexShrink: 0 }}>
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => router.push("/metrics")}
+            className="w-full rounded-2xl px-4 py-3 mb-5 text-left"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", cursor: "pointer" }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: "var(--muted)" }}>Progress</span>
+              <span className="text-[11px] font-medium" style={{ color: "var(--muted)" }}>View all →</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col items-center gap-1.5">
+                <svg width={RING_SIZE} height={RING_SIZE} style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} fill="none" stroke="var(--border)" strokeWidth={STROKE} />
+                  <circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS} fill="none" stroke="#1C1C1E" strokeWidth={STROKE}
+                    strokeLinecap="round" strokeDasharray={CIRCUMFERENCE}
+                    strokeDashoffset={CIRCUMFERENCE - (completionPct / 100) * CIRCUMFERENCE} />
+                  <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle"
+                    style={{ transform: "rotate(90deg)", transformOrigin: "center", fontFamily: "var(--font-playfair), 'Playfair Display', serif", fontSize: 14, fontWeight: 700, fill: "var(--foreground)" }}>
+                    {completionPct}%
+                  </text>
+                </svg>
+                <span className="text-[10px]" style={{ color: "var(--muted)" }}>Plan</span>
               </div>
-              <span className="text-[10px]" style={{ color: "var(--muted)" }}>This week</span>
-            </div>
-            <div className="flex flex-col items-center justify-center gap-1.5">
-              {moodSparkline.length > 1 ? (
-                <ResponsiveContainer width="100%" height={36}>
-                  <LineChart data={moodSparkline} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-                    <Line type="monotone" dataKey="v" stroke="#1C1C1E" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span className="text-[10px]" style={{ color: "var(--border)" }}>No data yet</span>
+              <div className="flex flex-col items-center justify-center gap-1.5">
+                <div className="flex gap-1">
+                  {weekDots.map((d, i) => (
+                    <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: d ? "#1C1C1E" : "transparent", border: `1.5px solid ${d ? "#1C1C1E" : "var(--border)"}` }} />
+                  ))}
                 </div>
-              )}
-              <span className="text-[10px]" style={{ color: "var(--muted)" }}>Mood</span>
+                <span className="text-[10px]" style={{ color: "var(--muted)" }}>This week</span>
+              </div>
+              <div className="flex flex-col items-center justify-center gap-1.5">
+                {moodSparkline.length > 1 ? (
+                  <ResponsiveContainer width="100%" height={36}>
+                    <LineChart data={moodSparkline} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                      <Line type="monotone" dataKey="v" stroke="#1C1C1E" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div style={{ height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span className="text-[10px]" style={{ color: "var(--border)" }}>No data yet</span>
+                  </div>
+                )}
+                <span className="text-[10px]" style={{ color: "var(--muted)" }}>Mood</span>
+              </div>
             </div>
-          </div>
-        </button>
+          </button>
+        )}
 
         {/* Tracker cards */}
         <div className="flex flex-col gap-3 mb-5">
@@ -393,15 +410,26 @@ export default function TodayPage() {
               My Today's Tasks
             </p>
           </div>
-          <p className="text-sm mb-4" style={{ color: "var(--foreground)", opacity: 0.7 }}>
-            You've got this. {total} {total === 1 ? "task" : "tasks"} today.
-          </p>
+          {plan && (
+            <p className="text-sm mb-4" style={{ color: "var(--foreground)", opacity: 0.7 }}>
+              You've got this. {total} {total === 1 ? "task" : "tasks"} today.
+            </p>
+          )}
 
-          {!todayData ? (
+          {planLoading ? (
             <div className="flex flex-col gap-3">
               {[1, 2].map((i) => (
                 <div key={i} className="skeleton rounded-xl h-16" />
               ))}
+            </div>
+          ) : !plan ? (
+            <div className="flex flex-col items-center text-center gap-3 py-4">
+              <p className="text-sm" style={{ color: "var(--muted)" }}>No plan yet. Start your journey.</p>
+              <button type="button" onClick={() => router.push("/onboarding")}
+                className="px-5 py-3 rounded-2xl text-sm font-semibold"
+                style={{ background: "#1C1C1E", color: "#fff", border: "none", cursor: "pointer" }}>
+                Create a plan
+              </button>
             </div>
           ) : done === total && total > 0 ? (
             <div className="py-4 flex flex-col items-center text-center gap-2">
