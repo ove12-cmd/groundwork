@@ -196,7 +196,229 @@ export const PHASES = [
   },
 ];
 
+export type PlanStatus = "active" | "completed" | "in-progress";
+
+export interface UserPlan {
+  id: string;
+  name: string;
+  focusArea: FocusArea;
+  totalDays: number;
+  completedDays: number;
+  status: PlanStatus;
+}
+
+export const USER_PLANS: UserPlan[] = [
+  {
+    id: "plan-1",
+    name: "Social Anxiety",
+    focusArea: "Social Anxiety",
+    totalDays: 30,
+    completedDays: 14,
+    status: "active",
+  },
+  {
+    id: "plan-2",
+    name: "Building Confidence",
+    focusArea: "Confidence",
+    totalDays: 21,
+    completedDays: 21,
+    status: "completed",
+  },
+  {
+    id: "plan-3",
+    name: "Managing Anxiety",
+    focusArea: "Anxiety",
+    totalDays: 30,
+    completedDays: 8,
+    status: "in-progress",
+  },
+];
+
+export const ACTIVE_PLAN_ID = "plan-1";
+
 export const JOURNAL_PROMPT =
   "You showed up today. What's one thing that felt hard, and one thing that felt a little easier than before?";
 
+// ── Daily tracking ─────────────────────────────────────────────────────────────
+
+export interface TrackingEntry {
+  date: string;   // YYYY-MM-DD
+  morning: number; // 1–10
+  evening: number; // 1–10
+}
+
+export const FOCUS_AREA_TRACKING_LABEL: Partial<Record<FocusArea, string>> = {
+  "Social Anxiety": "Anxiety level",
+  Anxiety:          "Anxiety level",
+  Depression:       "Mood level",
+  Anger:            "Anger level",
+  Confidence:       "Confidence level",
+  "Self-esteem":    "Confidence level",
+};
+
+function genTrackingData(): TrackingEntry[] {
+  const today = new Date();
+  return Array.from({ length: 90 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (89 - i));
+    const base = 7.5 - (i / 89) * 3;
+    return {
+      date:    d.toISOString().split("T")[0],
+      morning: Math.max(1, Math.min(10, Math.round(base + Math.sin(i * 0.7) * 1.5))),
+      evening: Math.max(1, Math.min(10, Math.round(base - 0.5 + Math.sin(i * 0.7 + 1.8) * 1.5))),
+    };
+  });
+}
+export const TRACKING_DATA = genTrackingData();
+
+// ── Habits ─────────────────────────────────────────────────────────────────────
+
+export type HabitIcon = "breath" | "phone" | "heart" | "walk" | "wind" | "sun" | "moon" | "book" | "star" | "drop";
+export type HabitFrequency = "daily" | "weekdays";
+
+export interface Habit {
+  id: string;
+  name: string;
+  icon: HabitIcon;
+  streak: number;
+  completedToday: boolean;
+  type: "ai" | "custom";
+  frequency: HabitFrequency;
+}
+
+export const AI_SUGGESTED_HABITS: Partial<Record<FocusArea, Habit[]>> = {
+  "Social Anxiety": [
+    { id: "sa-1", name: "5 min morning breathing",          icon: "breath", streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "sa-2", name: "No phone first 30 min after waking", icon: "phone",  streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "sa-3", name: "One moment of gratitude before bed", icon: "heart",  streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "sa-4", name: "10 min walk outside",               icon: "walk",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "sa-5", name: "3 deep breaths before stress",      icon: "wind",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+  ],
+  Anxiety: [
+    { id: "anx-1", name: "5 min morning breathing",        icon: "breath", streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "anx-2", name: "Grounding exercise before sleep", icon: "moon",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "anx-3", name: "10 min walk outside",            icon: "walk",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "anx-4", name: "No caffeine after 2pm",          icon: "drop",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "anx-5", name: "Write one worry, then let it go", icon: "book",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+  ],
+  Depression: [
+    { id: "dep-1", name: "Sunlight within 1 hr of waking", icon: "sun",    streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "dep-2", name: "One moment of gratitude",         icon: "heart",  streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "dep-3", name: "10 min walk outside",             icon: "walk",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "dep-4", name: "Write 3 things you noticed",      icon: "book",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "dep-5", name: "5 min stretching in the morning", icon: "wind",   streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+  ],
+  Confidence: [
+    { id: "con-1", name: "Write one thing you did well",         icon: "star",  streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "con-2", name: "2 min positive self-talk",             icon: "heart", streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "con-3", name: "Do one thing outside your comfort zone", icon: "sun", streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "con-4", name: "Read for 15 minutes",                  icon: "book",  streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+    { id: "con-5", name: "Morning intention setting",            icon: "moon",  streak: 0, completedToday: false, type: "ai", frequency: "daily" },
+  ],
+};
+
+export function getSuggestedHabits(focusArea: FocusArea): Habit[] {
+  return (AI_SUGGESTED_HABITS[focusArea] ?? AI_SUGGESTED_HABITS["Social Anxiety"])!;
+}
+
+export const MOCK_MY_HABITS: Habit[] = [
+  { id: "sa-1", name: "5 min morning breathing",          icon: "breath", streak: 5, completedToday: false, type: "ai", frequency: "daily" },
+  { id: "sa-3", name: "One moment of gratitude before bed", icon: "heart", streak: 7, completedToday: false, type: "ai", frequency: "daily" },
+  { id: "sa-4", name: "10 min walk outside",               icon: "walk",  streak: 3, completedToday: false, type: "ai", frequency: "daily" },
+];
+
+export const MOCK_HABIT_COMPLETIONS: Record<string, boolean[]> = {
+  "sa-1": [true, true, false, true, true, true, false],
+  "sa-3": [true, true, true,  true, false, true, true],
+  "sa-4": [true, false, true, true, true, false, true],
+};
+
+// ── Weekly reviews ──────────────────────────────────────────────────────────────
+
+export interface WeeklyReview {
+  id: string;
+  weekNumber: number;
+  dateRange: string;
+  opening: string;
+  tasksCompleted: number;
+  habitStreak: number;
+  avgMorning: number;
+  avgEvening: number;
+  journalEntries: number;
+  taskTypes: string[];
+  moodArc: number[];
+  morningArc: number[];
+  eveningArc: number[];
+  highlights: string[];
+  focusNext: string;
+  overallScore: number;
+}
+
+export const WEEKLY_REVIEWS: WeeklyReview[] = [
+  {
+    id: "w1",
+    weekNumber: 1,
+    dateRange: "Apr 28 – May 4",
+    opening: "You showed up every single day this week — that's not nothing, it's everything. Your first week brought real moments of self-awareness, and the courage to keep going even when it felt uncomfortable.",
+    tasksCompleted: 9,
+    habitStreak: 3,
+    avgMorning: 6.8,
+    avgEvening: 5.9,
+    journalEntries: 2,
+    taskTypes: ["Breathing", "Journal", "Reflection"],
+    moodArc: [3, 3, 4, 3, 4, 4, 5],
+    morningArc: [7, 6, 7, 6, 5, 6, 6],
+    eveningArc: [6, 5, 6, 5, 5, 6, 6],
+    highlights: [
+      "You completed your breathing exercise 5 out of 7 days — a strong start.",
+      "Your evening anxiety score dropped from 7 to 5 by end of week.",
+      "You wrote in your journal twice — more than most people do in week 1.",
+    ],
+    focusNext: "Try to extend your breathing habit to every single day. Even 3 minutes counts.",
+    overallScore: 72,
+  },
+  {
+    id: "w2",
+    weekNumber: 2,
+    dateRange: "May 1 – May 7",
+    opening: "Week two and you're still here — that's the hardest part already done. You're building something real. Your numbers are moving in the right direction, and your consistency is starting to show.",
+    tasksCompleted: 12,
+    habitStreak: 5,
+    avgMorning: 5.9,
+    avgEvening: 5.1,
+    journalEntries: 3,
+    taskTypes: ["Breathing", "Mindfulness", "Reflection", "Journal"],
+    moodArc: [4, 4, 5, 4, 5, 5, 6],
+    morningArc: [6, 6, 5, 5, 6, 6, 5],
+    eveningArc: [5, 5, 5, 4, 5, 5, 5],
+    highlights: [
+      "Your morning anxiety averaged 5.9 this week, down from 6.8 last week.",
+      "You hit a 5-day habit streak — your longest yet.",
+      "You completed 12 tasks, 33% more than last week.",
+    ],
+    focusNext: "Your afternoon slumps are showing in the data. Try a 2-minute grounding exercise at 3pm.",
+    overallScore: 81,
+  },
+];
+
 export const STREAK = 4;
+
+/** Days the user has fully completed (mock — days 1-4 done, today in progress). */
+export const COMPLETED_DAYS: number[] = [1, 2, 3, 4];
+
+/** Count consecutive completed days ending at `today`. */
+export function computeStreak(completedDays: number[], today: number): number {
+  let streak = 0;
+  for (let d = today; d >= 1; d--) {
+    if (completedDays.includes(d)) streak++;
+    else break;
+  }
+  return streak;
+}
+
+/** Sum total tasks across all completed days. */
+export function computeTasksDone(completedDays: number[], planDays: Day[]): number {
+  return planDays
+    .filter((d) => completedDays.includes(d.day))
+    .reduce((sum, d) => sum + d.tasks.length, 0);
+}

@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Shell from "@/components/Shell";
-import { PLAN_DAYS, PHASES } from "@/lib/mock-data";
+import { AnimatePresence, motion } from "framer-motion";
+import { PHASES, USER_PLANS, ACTIVE_PLAN_ID, type UserPlan, type PlanStatus } from "@/lib/mock-data";
 
 const PHASE_COLORS: Record<string, string> = {
   Awareness: "var(--accent-recharge)",
@@ -16,121 +17,296 @@ const PHASE_TEXT: Record<string, string> = {
   Integration: "#4a3728",
 };
 
+const STATUS_LABEL: Record<PlanStatus, string> = {
+  active: "Active",
+  completed: "Completed",
+  "in-progress": "In progress",
+};
+
+function PlanCard({
+  plan,
+  isSelected,
+  onClick,
+  onMenu,
+}: {
+  plan: UserPlan;
+  isSelected: boolean;
+  onClick: () => void;
+  onMenu: () => void;
+}) {
+  const pct = Math.round((plan.completedDays / plan.totalDays) * 100);
+  return (
+    <div
+      className="flex-shrink-0 rounded-2xl p-4 flex flex-col gap-3"
+      style={{
+        width: 160,
+        background: "var(--card)",
+        border: `1.5px solid ${isSelected ? "#1C1C1E" : "var(--border)"}`,
+        cursor: "pointer",
+      }}
+      onClick={onClick}
+    >
+      <div className="flex items-start justify-between gap-1">
+        <p className="text-sm font-semibold leading-tight" style={{ color: "var(--foreground)" }}>
+          {plan.name}
+        </p>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onMenu(); }}
+          className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full"
+          style={{ color: "var(--muted)", background: "transparent", border: "none" }}
+          aria-label="Plan options"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="12" r="1.5" />
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="19" cy="12" r="1.5" />
+          </svg>
+        </button>
+      </div>
+
+      <p className="text-[11px]" style={{ color: "var(--muted)" }}>{plan.focusArea}</p>
+
+      {/* Progress bar */}
+      <div>
+        <div className="h-1.5 rounded-full overflow-hidden mb-1" style={{ background: "var(--border)" }}>
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${pct}%`, background: "#1C1C1E" }}
+          />
+        </div>
+        <p className="text-[10px] font-medium" style={{ color: "var(--muted)" }}>{pct}% complete</p>
+      </div>
+
+      <span
+        className="self-start text-[10px] font-semibold px-2 py-0.5 rounded-full"
+        style={{
+          background: plan.status === "active" ? "#1C1C1E" : "var(--border)",
+          color: plan.status === "active" ? "#ffffff" : "var(--muted)",
+        }}
+      >
+        {STATUS_LABEL[plan.status]}
+      </span>
+    </div>
+  );
+}
+
+const SHEET_ACTIONS = [
+  { id: "active",   label: "Set as active" },
+  { id: "complete", label: "Mark as complete" },
+  { id: "delete",   label: "Delete plan",    danger: true },
+];
+
 export default function PlanPage() {
   const router = useRouter();
+  const [plans, setPlans] = useState<UserPlan[]>(USER_PLANS);
+  const [activePlanId, setActivePlanId] = useState(ACTIVE_PLAN_ID);
+  const [selectedPlanId, setSelectedPlanId] = useState(ACTIVE_PLAN_ID);
+  const [sheetPlanId, setSheetPlanId] = useState<string | null>(null);
+
+  const activePlan = plans.find((p) => p.id === activePlanId)!;
+  const sheetPlan = plans.find((p) => p.id === sheetPlanId) ?? null;
+
+  const handleSheetAction = (actionId: string) => {
+    if (!sheetPlanId) return;
+    if (actionId === "active") {
+      setActivePlanId(sheetPlanId);
+      setSelectedPlanId(sheetPlanId);
+      setPlans((prev) =>
+        prev.map((p) => ({ ...p, status: p.id === sheetPlanId ? "active" : p.status === "active" ? "in-progress" : p.status }))
+      );
+    } else if (actionId === "complete") {
+      setPlans((prev) =>
+        prev.map((p) => (p.id === sheetPlanId ? { ...p, status: "completed" } : p))
+      );
+    } else if (actionId === "delete") {
+      setPlans((prev) => prev.filter((p) => p.id !== sheetPlanId));
+      if (activePlanId === sheetPlanId) {
+        const remaining = plans.filter((p) => p.id !== sheetPlanId);
+        if (remaining.length) setActivePlanId(remaining[0].id);
+      }
+    }
+    setSheetPlanId(null);
+  };
 
   return (
-    <Shell>
-      <div className="px-5 pt-8 pb-4">
-        <button
-          onClick={() => router.push("/onboarding")}
-          className="flex items-center gap-1 mb-6 text-sm font-medium"
-          style={{ color: "var(--muted)" }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Back
-        </button>
+    <div className="flex justify-center" style={{ background: "var(--background)", height: "100dvh" }}>
+      <div className="w-full max-w-[390px] flex flex-col" style={{ height: "100%" }}>
 
-        <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--green)" }}>
-          Your Plan
-        </p>
-        <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
-          Social Anxiety — 30 Days
-        </h1>
-        <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
-          "I want to feel less anxious in social situations"
-        </p>
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-5 pt-8 pb-44">
 
-        {/* Phase cards — stagger fade in one by one */}
-        <div className="flex flex-col gap-3 mb-8">
-          {PHASES.map((phase, i) => (
-            <div
-              key={phase.name}
-              className="rounded-2xl p-4 card-rise"
-              style={{
-                background: PHASE_COLORS[phase.name],
-                animationDelay: `${i * 120}ms`,
-              }}
+          {/* Header row */}
+          <div className="flex items-center justify-between mb-5">
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
+              My Plans
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push("/onboarding")}
+              className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full"
+              style={{ background: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)" }}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-semibold" style={{ color: PHASE_TEXT[phase.name] }}>
-                  {phase.name}
-                </span>
-                <span
-                  className="text-xs font-medium px-2 py-0.5 rounded-full"
-                  style={{ background: "rgba(255,255,255,0.4)", color: PHASE_TEXT[phase.name] }}
-                >
-                  {phase.days}
-                </span>
-              </div>
-              <p className="text-xs leading-relaxed" style={{ color: PHASE_TEXT[phase.name], opacity: 0.85 }}>
-                {phase.description}
-              </p>
-            </div>
-          ))}
-        </div>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              New plan
+            </button>
+          </div>
 
-        {/* Day list */}
-        <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
-          Day by day
-        </p>
-
-        {PHASES.map((phase) => (
-          <div key={phase.name} className="mb-6">
-            <div
-              className="text-[11px] font-semibold uppercase tracking-widest mb-3 px-2 py-1 rounded-lg inline-block"
-              style={{ background: PHASE_COLORS[phase.name], color: PHASE_TEXT[phase.name] }}
-            >
-              {phase.name} · {phase.days}
-            </div>
-            <div className="flex flex-col gap-2">
-              {PLAN_DAYS.filter((d) => d.phase === phase.name).map((day) => (
-                <div
-                  key={day.day}
-                  className="rounded-2xl px-4 py-3 flex items-start gap-3"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                >
-                  <span className="text-sm font-semibold mt-0.5 min-w-[28px]" style={{ color: "var(--green)" }}>
-                    {day.day}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium mb-1.5" style={{ color: "var(--foreground)" }}>
-                      {day.theme}
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {day.tasks.map((t) => (
-                        <span
-                          key={t.id}
-                          className="text-[11px] font-medium px-2 py-0.5 rounded-full"
-                          style={{ background: "var(--background)", color: "var(--muted)", border: "1px solid var(--border)" }}
-                        >
-                          {t.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+          {/* Horizontal scrollable plan cards */}
+          {plans.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-2 mb-6 -mx-5 pl-5" style={{ scrollbarWidth: "none" }}>
+              {plans.map((plan) => (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  isSelected={plan.id === selectedPlanId}
+                  onClick={() => setSelectedPlanId(plan.id)}
+                  onMenu={() => setSheetPlanId(plan.id)}
+                />
               ))}
             </div>
+          )}
+
+          {/* Active plan overview */}
+          <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "var(--muted)" }}>
+            Your Plan
+          </p>
+          <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+            {activePlan.focusArea} — {activePlan.totalDays} Days
+          </h1>
+          <p className="text-sm mb-8" style={{ color: "var(--muted)" }}>
+            "I want to feel less anxious in social situations"
+          </p>
+
+          {/* Phase cards */}
+          <div className="flex flex-col gap-3">
+            {PHASES.map((phase, i) => (
+              <div
+                key={phase.name}
+                className="rounded-2xl p-4 card-rise"
+                style={{ background: PHASE_COLORS[phase.name], animationDelay: `${i * 120}ms` }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold" style={{ color: PHASE_TEXT[phase.name] }}>
+                    {phase.name}
+                  </span>
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded-full"
+                    style={{ background: "rgba(255,255,255,0.4)", color: PHASE_TEXT[phase.name] }}
+                  >
+                    {phase.days}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed" style={{ color: PHASE_TEXT[phase.name], opacity: 0.85 }}>
+                  {phase.description}
+                </p>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+
+        {/* Fixed bottom CTA */}
+        <div
+          className="fixed left-1/2 -translate-x-1/2 w-full max-w-[390px] px-5 pt-4 pb-4"
+          style={{ bottom: 72, background: "linear-gradient(to top, var(--background) 70%, transparent)" }}
+        >
+          <button
+            type="button"
+            onClick={() => router.push("/plan/days")}
+            className="w-full py-4 rounded-2xl text-base font-semibold"
+            style={{ background: "#1C1C1E", color: "#ffffff" }}
+          >
+            Days overview
+          </button>
+        </div>
       </div>
 
-      {/* Sticky CTA */}
-      <div
-        className="fixed bottom-[64px] left-1/2 -translate-x-1/2 w-full max-w-[390px] px-5 pb-3 pt-2"
-        style={{ background: "linear-gradient(to top, var(--background) 80%, transparent)" }}
-      >
-        <button
-          onClick={() => router.push("/today")}
-          className="w-full py-4 rounded-2xl text-base font-semibold"
-          style={{ background: "var(--green)", color: "#ffffff" }}
-        >
-          Start my plan
-        </button>
-      </div>
-    </Shell>
+      {/* Action sheet */}
+      <AnimatePresence>
+        {sheetPlanId && (
+          <>
+            {/* Overlay */}
+            <motion.div
+              key="overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setSheetPlanId(null)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.4)",
+                zIndex: 100,
+              }}
+            />
+
+            {/* Sheet */}
+            <motion.div
+              key="sheet"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "tween", ease: [0.32, 0, 0.18, 1], duration: 0.28 }}
+              style={{
+                position: "fixed",
+                bottom: 0,
+                left: "50%",
+                x: "-50%",
+                width: "100%",
+                maxWidth: 390,
+                background: "var(--card)",
+                borderRadius: "20px 20px 0 0",
+                zIndex: 101,
+                paddingBottom: "env(safe-area-inset-bottom, 16px)",
+              }}
+            >
+              {/* Handle */}
+              <div className="flex justify-center pt-3 pb-2">
+                <div className="w-10 h-1 rounded-full" style={{ background: "var(--border)" }} />
+              </div>
+
+              {sheetPlan && (
+                <p className="px-6 pb-3 text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
+                  {sheetPlan.name}
+                </p>
+              )}
+
+              <div className="flex flex-col pb-4">
+                {SHEET_ACTIONS.map((action, i) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={() => handleSheetAction(action.id)}
+                    className="w-full px-6 py-4 text-left text-base font-medium"
+                    style={{
+                      color: action.danger ? "#c0392b" : "var(--foreground)",
+                      background: "transparent",
+                      border: "none",
+                      borderTop: i > 0 ? "1px solid var(--border)" : "none",
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ borderTop: "8px solid var(--border)" }}>
+                <button
+                  type="button"
+                  onClick={() => setSheetPlanId(null)}
+                  className="w-full px-6 py-4 text-base font-semibold"
+                  style={{ color: "var(--foreground)", background: "transparent", border: "none" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

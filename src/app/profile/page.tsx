@@ -1,15 +1,102 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Shell from "@/components/Shell";
-import { STREAK, TODAY_DAY } from "@/lib/mock-data";
+import {
+  TODAY_DAY,
+  PLAN_DAYS,
+  COMPLETED_DAYS,
+  computeStreak,
+  computeTasksDone,
+} from "@/lib/mock-data";
+
+const currentDay = TODAY_DAY;
+const streak = computeStreak(COMPLETED_DAYS, TODAY_DAY);
+const tasksDone = computeTasksDone(COMPLETED_DAYS, PLAN_DAYS);
+
+const STORAGE_KEY = "groundwork-notif";
+
+function IOSToggle({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={onToggle}
+      style={{
+        width: 44,
+        height: 26,
+        borderRadius: 13,
+        background: enabled ? "#1C1C1E" : "var(--border)",
+        position: "relative",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        flexShrink: 0,
+        transition: "background 0.2s ease",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: enabled ? 21 : 3,
+          width: 20,
+          height: 20,
+          borderRadius: "50%",
+          background: "#ffffff",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+          transition: "left 0.2s ease",
+          display: "block",
+        }}
+      />
+    </button>
+  );
+}
 
 export default function ProfilePage() {
   const router = useRouter();
 
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifTime, setNotifTime] = useState("09:00");
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const { enabled, time } = JSON.parse(raw) as { enabled: boolean; time: string };
+        setNotifEnabled(!!enabled);
+        setNotifTime(time ?? "09:00");
+      }
+    } catch {
+      // ignore malformed storage
+    }
+    setHydrated(true);
+  }, []);
+
+  const toggleNotif = () => {
+    const next = !notifEnabled;
+    setNotifEnabled(next);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ enabled: next, time: notifTime }));
+  };
+
+  const updateTime = (t: string) => {
+    setNotifTime(t);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ enabled: notifEnabled, time: t }));
+  };
+
   return (
     <Shell>
       <div className="px-5 pt-8 pb-4">
+
         <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
           Profile
         </h1>
@@ -17,12 +104,12 @@ export default function ProfilePage() {
           Social Anxiety · 30-day plan
         </p>
 
-        {/* Stats row */}
+        {/* Stats — derived from mock data */}
         <div className="grid grid-cols-3 gap-3 mb-8">
           {[
-            { label: "Day", value: TODAY_DAY },
-            { label: "Streak", value: STREAK },
-            { label: "Tasks done", value: 11 },
+            { label: "Day",        value: currentDay },
+            { label: "Streak",     value: streak },
+            { label: "Tasks done", value: tasksDone },
           ].map((stat) => (
             <div
               key={stat.label}
@@ -41,7 +128,7 @@ export default function ProfilePage() {
 
         {/* Goal */}
         <div
-          className="rounded-2xl px-4 py-4 mb-4"
+          className="rounded-2xl px-4 py-4 mb-8"
           style={{ background: "var(--card)", border: "1px solid var(--border)" }}
         >
           <p className="text-[11px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--muted)" }}>
@@ -52,14 +139,68 @@ export default function ProfilePage() {
           </p>
         </div>
 
-        {/* Settings list */}
+        {/* Notifications */}
+        <p className="text-[13px] font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
+          Notifications
+        </p>
+        <div
+          className="rounded-2xl px-4 mb-2 overflow-hidden"
+          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+        >
+          {/* Toggle row */}
+          <div className="flex items-center justify-between py-4">
+            <div>
+              <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                Daily reminder
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>
+                {hydrated && notifEnabled
+                  ? `Enabled · ${notifTime}`
+                  : "Off"}
+              </p>
+            </div>
+            {hydrated && (
+              <IOSToggle enabled={notifEnabled} onToggle={toggleNotif} />
+            )}
+          </div>
+
+          {/* Time picker — slides in when enabled */}
+          {hydrated && notifEnabled && (
+            <div
+              className="pb-4 pt-1"
+              style={{ borderTop: "1px solid var(--border)" }}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>
+                Reminder time
+              </p>
+              <input
+                type="time"
+                value={notifTime}
+                onChange={(e) => updateTime(e.target.value)}
+                style={{
+                  background: "var(--background)",
+                  color: "var(--foreground)",
+                  border: "1.5px solid var(--border)",
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                  fontSize: 15,
+                  fontFamily: "inherit",
+                  width: "100%",
+                  outline: "none",
+                  WebkitAppearance: "none",
+                }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Settings */}
         <p className="text-[13px] font-semibold uppercase tracking-widest mb-3 mt-6" style={{ color: "var(--muted)" }}>
-          Settings
+          Plan settings
         </p>
         {[
-          { label: "Notifications", detail: "Daily at 9:00 AM" },
           { label: "Plan duration", detail: "30 days" },
-          { label: "Focus area", detail: "Social Anxiety" },
+          { label: "Focus area",    detail: "Social Anxiety" },
         ].map((item) => (
           <div
             key={item.label}
@@ -79,6 +220,7 @@ export default function ProfilePage() {
         ))}
 
         <button
+          type="button"
           onClick={() => router.push("/onboarding")}
           className="w-full py-4 rounded-2xl text-base font-semibold mt-6"
           style={{ background: "var(--card)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}

@@ -32,6 +32,15 @@ const tabs = [
     ),
   },
   {
+    href: "/metrics",
+    label: "Metrics",
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 12 18 12 15 19 9 5 6 12 2 12" />
+      </svg>
+    ),
+  },
+  {
     href: "/profile",
     label: "Profile",
     icon: (active: boolean) => (
@@ -69,11 +78,8 @@ export default function BottomNav() {
             key={tab.href}
             href={tab.href}
             onClick={() => handleClick(tab.href)}
-            className="flex flex-col items-center gap-1 py-3 px-5"
-            style={{
-              color: active ? "var(--green)" : "var(--muted)",
-              transition: "color 0.15s ease",
-            }}
+            className="nav-link flex flex-col items-center gap-1 py-3 px-5"
+            style={{ color: active ? "var(--green)" : "var(--muted)" }}
           >
             <span className={isBouncing ? "nav-bounce" : ""} style={{ display: "flex" }}>
               {tab.icon(active)}

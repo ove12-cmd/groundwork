@@ -102,15 +102,15 @@ export default function CheckinPage() {
             return (
               <button
                 key={m.value}
+                type="button"
                 onClick={() => setMood(m.value)}
-                className="flex flex-col items-center gap-1.5 transition-all"
+                className={`flex flex-col items-center gap-1.5${active ? " mood-selected" : ""}`}
               >
                 <span
-                  className="text-2xl w-12 h-12 flex items-center justify-center rounded-2xl transition-all"
+                  className="text-2xl w-12 h-12 flex items-center justify-center rounded-2xl"
                   style={{
                     background: active ? "var(--green)" : "var(--card)",
                     border: active ? "2px solid var(--green)" : "1.5px solid var(--border)",
-                    transform: active ? "scale(1.1)" : "scale(1)",
                   }}
                 >
                   {m.emoji}

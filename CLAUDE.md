@@ -21,7 +21,7 @@ by generating a personalized AI-driven plan based on their goal.
 - All screens live in src/app/
 - Global styles in src/app/globals.css
 - Shared components in src/components/
-- Mock data in src/lib/mockData.ts
+- Mock data in src/lib/mock-data.ts
 
 ## Rules
 - Never add a backend unless explicitly asked
@@ -29,3 +29,6 @@ by generating a personalized AI-driven plan based on their goal.
 - Keep layouts spacious — this is a wellness app not a dashboard
 - Always mobile-first
 - One CTA per screen maximum
+
+## Todo / Future
+- Notifications toggle on profile page is UI only for now — needs backend + service worker to send real push notifications when that feature is built.
