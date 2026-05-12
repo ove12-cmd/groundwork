@@ -13,56 +13,42 @@ import BottomNav from "@/components/BottomNav";
 type LocalFocus = FocusArea | "write-myself";
 interface Question { text: string; options: string[] }
 
-// ── Static fallback questions (shown if API fails) ────────────────────────────
+// ── Static fallback questions (used if API fails) ─────────────────────────────
 
 const FALLBACK_QUESTIONS: Record<string, Question[]> = {
   "Social Anxiety": [
-    { text: "Which situations feel hardest for you?", options: ["Speaking up in a group", "Meeting new people", "Being the centre of attention", "Fear of being judged", "All social situations"] },
-    { text: "How long have you been experiencing this?", options: ["Less than a year", "1–3 years", "3–5 years", "Most of my life"] },
+    { text: "Which situations feel hardest for you?", options: ["Speaking up in a group", "Meeting new people", "Being the centre of attention", "Fear of being judged"] },
     { text: "How much does it affect your daily life?", options: ["Mildly — I mostly manage", "Moderately — it holds me back", "Significantly — it affects most things"] },
-    { text: "Have you worked on this before?", options: ["Not really", "I've tried some things on my own", "I've worked with a therapist or coach"] },
     { text: "What does success look like for you?", options: ["Feel calmer in social situations", "Speak up and be heard", "Make deeper connections", "Feel comfortable being myself"] },
   ],
   "Anxiety": [
     { text: "What does anxiety feel like for you most often?", options: ["Constant low-level worry", "Sudden intense waves", "Overthinking that won't stop", "Physical tension or restlessness"] },
-    { text: "What tends to trigger it?", options: ["Work or performance pressure", "Relationships", "The future or uncertainty", "Social situations", "It can be anything"] },
     { text: "How does it affect your sleep?", options: ["Sleep is mostly fine", "I sometimes lie awake worrying", "Sleep is often disrupted", "I rarely sleep well"] },
-    { text: "How long have you been dealing with this?", options: ["A few months", "About a year", "Several years", "As long as I can remember"] },
     { text: "What do you most want to change?", options: ["Quiet the mental noise", "Feel more in control", "React less intensely", "Just get through the day better"] },
   ],
   "Depression": [
     { text: "What's been hardest recently?", options: ["Low energy and motivation", "Feeling empty or flat", "Withdrawing from others", "A sense of hopelessness"] },
-    { text: "How long have you been feeling this way?", options: ["A few weeks", "A few months", "Most of this year", "For a long time"] },
     { text: "What does your energy feel like most days?", options: ["Very low — hard to function", "Inconsistent — up and down", "Low but I push through", "Okay but emotionally flat"] },
-    { text: "Have you sought support before?", options: ["Not yet", "I've tried some things", "Yes, in the past", "I'm currently getting support"] },
     { text: "What would feeling better look like?", options: ["More energy for things I love", "Finding joy in small moments", "A stable, consistent mood", "Just getting through each day"] },
   ],
   "Anger": [
     { text: "What usually triggers your anger?", options: ["Feeling unheard or dismissed", "Stress and pressure building up", "Unexpected changes or setbacks", "Specific people or situations"] },
     { text: "How do you typically express it?", options: ["I explode, then regret it", "I shut down and go cold", "I hold it in until I break", "It varies a lot"] },
-    { text: "How quickly do you usually recover?", options: ["Within minutes", "A few hours", "It can take days", "It lingers for a long time"] },
-    { text: "Has it affected important relationships?", options: ["Not really", "Sometimes, a little", "Yes, it's caused real damage"] },
     { text: "What do you most want to change?", options: ["React less intensely in the moment", "Understand what's really driving it", "Recover faster after flare-ups", "Communicate better when upset"] },
   ],
   "Confidence": [
-    { text: "Where do you feel least confident?", options: ["In my career or at work", "In close relationships", "Socially with new people", "About my appearance", "It's everywhere"] },
+    { text: "Where do you feel least confident?", options: ["In my career or at work", "In close relationships", "Socially with new people", "About my appearance"] },
     { text: "What holds you back the most?", options: ["Fear of failing", "Worrying what others think", "Comparing myself to others", "Not feeling good enough"] },
-    { text: "How long have you felt this way?", options: ["Something recently changed", "A few years", "Most of my adult life", "Since I was young"] },
-    { text: "What have you tried before?", options: ["Not much yet", "Self-help books or podcasts", "Journaling or reflection", "Coaching or therapy"] },
     { text: "What would more confidence give you?", options: ["Taking bigger risks and chances", "Speaking up and being heard", "Better, deeper relationships", "Feeling at home in my own skin"] },
   ],
   "Self-esteem": [
     { text: "What does low self-esteem feel like for you?", options: ["Constant self-criticism", "Feeling invisible or unimportant", "Assuming others don't like me", "Never feeling good enough"] },
     { text: "What triggers it most?", options: ["Comparisons to others", "Criticism or rejection", "Making mistakes", "Being around certain people"] },
-    { text: "How long have you struggled with this?", options: ["Something recently changed", "A few years", "Most of my life", "I can't remember feeling different"] },
-    { text: "How does it show up day-to-day?", options: ["I avoid putting myself out there", "I talk myself out of opportunities", "I struggle to accept compliments", "I apologise constantly"] },
     { text: "What do you hope to feel instead?", options: ["Secure in who I am", "Worthy of love and good things", "Comfortable in my own skin", "Proud of myself"] },
   ],
   "write-myself": [
     { text: "How long has this been affecting you?", options: ["A few months", "About a year", "Several years", "A long time"] },
     { text: "How much does it impact your daily life?", options: ["A little — I mostly cope", "Quite a bit", "Significantly — it's hard to ignore"] },
-    { text: "Have you worked on this before?", options: ["Not really", "A little, on my own", "Yes, with professional support"] },
-    { text: "What approach resonates most with you?", options: ["Reflection and journaling", "Learning and understanding", "Practical exercises", "Just getting started"] },
     { text: "What does success look like to you?", options: ["More clarity and self-awareness", "Feeling calmer and more grounded", "Stronger relationships", "A better sense of who I am"] },
   ],
 };
@@ -90,33 +76,110 @@ const GOAL_PREFILL: Record<string, string> = {
 const DURATIONS = [{ label: "7 days", value: 7 }, { label: "14 days", value: 14 }, { label: "30 days", value: 30 }];
 const FOCUS_AREAS: FocusArea[] = ["Social Anxiety", "Depression", "Anxiety", "Anger", "Confidence", "Self-esteem"];
 const ONBOARDING_FLAG = "hasCompletedOnboarding";
-const TOTAL_STEPS = 8;
+const MAX_QUESTIONS = 6;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function LeafIcon() {
+function LeafIcon({ size = 15 }: { size?: number }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22V12"/><path d="M12 12C7 10 4 6 5 2c4 0 9 3 7 10z"/><path d="M12 12C17 10 20 6 19 2c-4 0-9 3-7 10z"/>
     </svg>
   );
 }
 
-function LoadingScreen({ message = "Building your plan…", sub = "Personalizing your journey" }: { message?: string; sub?: string }) {
+const LOADING_MESSAGES = [
+  "Reading your responses…",
+  "Understanding your patterns…",
+  "Designing your first week…",
+  "Building daily tasks for you…",
+  "Adding habits that fit your life…",
+  "Putting the finishing touches…",
+];
+
+function LoadingScreen() {
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [iconScale, setIconScale] = useState(1);
+
+  useEffect(() => {
+    const msgInterval = setInterval(() => {
+      setMsgIndex(i => (i + 1) % LOADING_MESSAGES.length);
+    }, 1800);
+    return () => clearInterval(msgInterval);
+  }, []);
+
+  useEffect(() => {
+    let growing = true;
+    const pulse = setInterval(() => {
+      setIconScale(growing ? 1.15 : 1);
+      growing = !growing;
+    }, 700);
+    return () => clearInterval(pulse);
+  }, []);
+
   return (
     <div className="fixed inset-0 flex justify-center" style={{ background: "var(--background)" }}>
-      <div className="w-full max-w-[390px] flex flex-col items-center justify-center gap-6">
-        <div className="w-16 h-16 rounded-[20px] flex items-center justify-center" style={{ background: "var(--accent-nourish)" }}>
-          <LeafIcon />
+      <div className="w-full max-w-[390px] flex flex-col items-center justify-center gap-8">
+        {/* Animated icon */}
+        <div className="relative flex items-center justify-center">
+          {/* Pulsing rings */}
+          <motion.div
+            className="absolute rounded-full"
+            style={{ background: "var(--accent-nourish)", opacity: 0.15 }}
+            animate={{ width: [72, 110], height: [72, 110], opacity: [0.2, 0] }}
+            transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }}
+          />
+          <motion.div
+            className="absolute rounded-full"
+            style={{ background: "var(--accent-nourish)", opacity: 0.1 }}
+            animate={{ width: [72, 130], height: [72, 130], opacity: [0.15, 0] }}
+            transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut", delay: 0.3 }}
+          />
+          {/* Icon box */}
+          <motion.div
+            className="w-[72px] h-[72px] rounded-[22px] flex items-center justify-center relative"
+            style={{ background: "var(--accent-nourish)" }}
+            animate={{ scale: iconScale }}
+            transition={{ duration: 0.6, ease: "easeInOut" }}
+          >
+            <motion.div
+              animate={{ rotate: [0, 8, -8, 0] }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <LeafIcon size={28} />
+            </motion.div>
+          </motion.div>
         </div>
-        <div className="text-center">
-          <p className="text-base font-semibold mb-1" style={{ color: "var(--foreground)" }}>{message}</p>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>{sub}</p>
+
+        {/* Message */}
+        <div className="text-center px-8">
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={msgIndex}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.35 }}
+              className="text-base font-semibold mb-2"
+              style={{ color: "var(--foreground)" }}
+            >
+              {LOADING_MESSAGES[msgIndex]}
+            </motion.p>
+          </AnimatePresence>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>Usually takes 15–20 seconds</p>
         </div>
+
+        {/* Progress dots */}
         <div className="flex items-center gap-2">
-          <span className="loading-dot" style={{ animationDelay: "0ms" }} />
-          <span className="loading-dot" style={{ animationDelay: "200ms" }} />
-          <span className="loading-dot" style={{ animationDelay: "400ms" }} />
+          {LOADING_MESSAGES.map((_, i) => (
+            <motion.div
+              key={i}
+              className="rounded-full"
+              style={{ background: i === msgIndex ? "#1C1C1E" : "var(--border)" }}
+              animate={{ width: i === msgIndex ? 20 : 6, height: 6 }}
+              transition={{ duration: 0.3 }}
+            />
+          ))}
         </div>
       </div>
     </div>
@@ -130,8 +193,8 @@ function QuestionSkeleton() {
       <div className="h-6 w-full rounded-full mb-2" style={{ background: "var(--border)" }} />
       <div className="h-6 w-3/4 rounded-full mb-8" style={{ background: "var(--border)" }} />
       <div className="flex flex-wrap gap-2.5 mb-8">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="h-10 rounded-full" style={{ background: "var(--border)", width: `${80 + i * 20}px` }} />
+        {[100, 130, 90, 115].map((w, i) => (
+          <div key={i} className="h-10 rounded-full" style={{ background: "var(--border)", width: w }} />
         ))}
       </div>
       <div className="h-14 rounded-2xl" style={{ background: "var(--border)" }} />
@@ -160,6 +223,7 @@ export default function OnboardingPage() {
   const [isReturning, setIsReturning] = useState(false);
   const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>([]);
   const [questionLoading, setQuestionLoading] = useState(false);
+  const [showDuration, setShowDuration] = useState(false);
 
   useEffect(() => {
     try { setIsReturning(localStorage.getItem(ONBOARDING_FLAG) === "true"); } catch { /* ignore */ }
@@ -168,13 +232,17 @@ export default function OnboardingPage() {
   const focusKey = focus ?? "write-myself";
   const fallbackQuestions = FALLBACK_QUESTIONS[focusKey] ?? FALLBACK_QUESTIONS["write-myself"];
 
-  const getQuestion = (qi: number): Question | null => dynamicQuestions[qi] ?? null;
+  // Progress: 0=focus,1=goal, then questions, then duration. Estimate total as 2+questions+1=up to 9
+  const estimatedTotal = 2 + Math.max(dynamicQuestions.length + 1, 3) + 1;
+  const progressPct = showDuration
+    ? 95
+    : Math.min(95, ((step + 1) / estimatedTotal) * 100);
 
-  const fetchQuestion = async (qi: number): Promise<Question> => {
-    const previousQA = Array.from({ length: qi }, (_, i) => {
-      const q = getQuestion(i);
-      return { question: q?.text ?? "", answers: answers[i] ?? [] };
-    });
+  const fetchQuestion = async (qi: number) => {
+    const previousQA = Array.from({ length: qi }, (_, i) => ({
+      question: dynamicQuestions[i]?.text ?? "",
+      answers: answers[i] ?? [],
+    }));
 
     const res = await fetch("/api/onboarding/next-question", {
       method: "POST",
@@ -183,18 +251,42 @@ export default function OnboardingPage() {
     });
 
     if (!res.ok) throw new Error("API error");
-    return res.json();
+    return res.json() as Promise<{ done: boolean; text?: string; options?: string[] }>;
   };
 
   const fetchAndAdvance = async (nextQI: number) => {
     setDir(1);
     setStep(s => s + 1);
+
+    // Hard max
+    if (nextQI >= MAX_QUESTIONS) {
+      setShowDuration(true);
+      return;
+    }
+
     setQuestionLoading(true);
     try {
-      const q = await fetchQuestion(nextQI);
-      setDynamicQuestions(prev => { const next = [...prev]; next[nextQI] = q; return next; });
+      const result = await fetchQuestion(nextQI);
+      if (result.done || !result.text) {
+        setShowDuration(true);
+      } else {
+        setDynamicQuestions(prev => {
+          const next = [...prev];
+          next[nextQI] = { text: result.text!, options: result.options ?? [] };
+          return next;
+        });
+      }
     } catch {
-      setDynamicQuestions(prev => { const next = [...prev]; next[nextQI] = fallbackQuestions[nextQI]; return next; });
+      // Fallback: go to duration if we have ≥3 questions, else use static
+      if (nextQI >= 3) {
+        setShowDuration(true);
+      } else {
+        setDynamicQuestions(prev => {
+          const next = [...prev];
+          next[nextQI] = fallbackQuestions[nextQI] ?? fallbackQuestions[0];
+          return next;
+        });
+      }
     } finally {
       setQuestionLoading(false);
     }
@@ -203,26 +295,33 @@ export default function OnboardingPage() {
   const advance = async () => {
     if (step === 0) {
       if (focus && focus !== "write-myself" && !goalText) setGoalText(GOAL_PREFILL[focus] ?? "");
-      setDir(1);
-      setStep(1);
+      setDir(1); setStep(1);
       return;
     }
     if (step === 1) { await fetchAndAdvance(0); return; }
-    if (step >= 2 && step <= 5) { await fetchAndAdvance(step - 1); return; }
-    setDir(1);
-    setStep(s => s + 1);
+    if (step >= 2 && !showDuration) { await fetchAndAdvance(step - 1); return; }
+    // duration step — handled by handleBuildPlan
   };
 
-  const goBack = () => { setDir(-1); setStep(s => s - 1); };
+  const goBack = () => {
+    if (showDuration) {
+      setShowDuration(false);
+      setDir(-1);
+      // stay on current step (last question)
+      return;
+    }
+    setDir(-1);
+    setStep(s => s - 1);
+  };
 
   const handleBuildPlan = async () => {
     setLoading(true);
     try { localStorage.setItem(ONBOARDING_FLAG, "true"); } catch { /* ignore */ }
 
-    const questionsAndAnswers = Array.from({ length: 5 }, (_, i) => {
-      const q = dynamicQuestions[i] ?? fallbackQuestions[i];
-      return { question: q?.text ?? "", answers: answers[i] ?? [] };
-    });
+    const questionsAndAnswers = dynamicQuestions.map((q, i) => ({
+      question: q.text,
+      answers: answers[i] ?? [],
+    }));
 
     try {
       const res = await fetch("/api/onboarding/generate-plan", {
@@ -230,19 +329,15 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ focus: focusKey, goal: goalText, questionsAndAnswers, duration }),
       });
-
       if (res.ok) {
         const plan = await res.json();
         try {
           localStorage.setItem(AI_PLAN_KEY, JSON.stringify({
-            ...plan,
-            focusArea: focusKey,
-            totalDays: duration,
-            createdAt: new Date().toISOString(),
+            ...plan, focusArea: focusKey, totalDays: duration, createdAt: new Date().toISOString(),
           }));
         } catch { /* ignore */ }
       }
-    } catch { /* ignore — fall back to mock plan */ }
+    } catch { /* fall back to mock plan */ }
 
     router.push("/auth");
   };
@@ -341,62 +436,8 @@ export default function OnboardingPage() {
       );
     }
 
-    // ── Steps 2–6: Questions ──────────────────────────────────────────────────
-    if (step >= 2 && step <= 6) {
-      if (questionLoading) return <QuestionSkeleton />;
-
-      const qi = step - 2;
-      const q = dynamicQuestions[qi] ?? fallbackQuestions[qi];
-      const selected = answers[qi] ?? [];
-      const hasSelection = selected.length > 0;
-
-      const toggle = (opt: string) => setAnswers(a => {
-        const prev = a[qi] ?? [];
-        return { ...a, [qi]: prev.includes(opt) ? prev.filter(o => o !== opt) : [...prev, opt] };
-      });
-
-      return (
-        <div className="px-6 pt-12 pb-10">
-          <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
-            Question {qi + 1} of 5
-          </p>
-          <h2 className="text-xl font-bold mb-2"
-            style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif", color: "var(--foreground)", lineHeight: 1.3 }}>
-            {q.text}
-          </h2>
-          <p className="text-xs mb-6" style={{ color: "var(--muted)" }}>Select all that apply</p>
-          <div className="flex flex-wrap gap-2.5 mb-8">
-            {q.options.map((opt) => {
-              const active = selected.includes(opt);
-              return (
-                <button key={opt} type="button" onClick={() => toggle(opt)}
-                  className="text-left px-4 py-2.5 rounded-full text-sm font-medium"
-                  style={{
-                    background: active ? "#1C1C1E" : "var(--card)",
-                    color: active ? "#fff" : "var(--foreground)",
-                    border: `1.5px solid ${active ? "#1C1C1E" : "var(--border)"}`,
-                    cursor: "pointer", transition: "background 0.15s ease, color 0.15s ease",
-                  }}>
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-          <button type="button" disabled={!hasSelection} onClick={advance}
-            style={{
-              width: "100%", padding: "16px", borderRadius: "16px", fontSize: "16px", fontWeight: 600, border: "none",
-              cursor: hasSelection ? "pointer" : "not-allowed",
-              background: hasSelection ? "#1C1C1E" : "var(--border)",
-              color: hasSelection ? "#fff" : "var(--muted)",
-            }}>
-            {step === 6 ? "Almost there →" : "Next"}
-          </button>
-        </div>
-      );
-    }
-
-    // ── Step 7: Duration ──────────────────────────────────────────────────────
-    if (step === 7) return (
+    // ── Duration step (shown when AI signals done or max reached) ─────────────
+    if (showDuration) return (
       <div className="px-6 pt-12 pb-10">
         <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--muted)" }}>Last step</p>
         <h2 className="text-2xl font-bold mb-2"
@@ -425,8 +466,93 @@ export default function OnboardingPage() {
       </div>
     );
 
+    // ── Question steps ────────────────────────────────────────────────────────
+    if (step >= 2) {
+      if (questionLoading) return <QuestionSkeleton />;
+
+      const qi = step - 2;
+      const q = dynamicQuestions[qi] ?? fallbackQuestions[qi];
+      if (!q) return <QuestionSkeleton />;
+
+      const selected = answers[qi] ?? [];
+      const hasSelection = selected.length > 0;
+      const allSelected = q.options.length > 0 && q.options.every(opt => selected.includes(opt));
+
+      const toggle = (opt: string) => setAnswers(a => {
+        const prev = a[qi] ?? [];
+        return { ...a, [qi]: prev.includes(opt) ? prev.filter(o => o !== opt) : [...prev, opt] };
+      });
+
+      const toggleAll = () => setAnswers(a => ({
+        ...a,
+        [qi]: allSelected ? [] : [...q.options],
+      }));
+
+      return (
+        <div className="px-6 pt-12 pb-10">
+          <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
+            Question {qi + 1}
+          </p>
+          <h2 className="text-xl font-bold mb-2"
+            style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif", color: "var(--foreground)", lineHeight: 1.3 }}>
+            {q.text}
+          </h2>
+          <p className="text-xs mb-6" style={{ color: "var(--muted)" }}>Select all that apply</p>
+
+          <div className="flex flex-wrap gap-2.5 mb-3">
+            {q.options.map((opt) => {
+              const active = selected.includes(opt);
+              return (
+                <button key={opt} type="button" onClick={() => toggle(opt)}
+                  className="text-left px-4 py-2.5 rounded-full text-sm font-medium"
+                  style={{
+                    background: active ? "#1C1C1E" : "var(--card)",
+                    color: active ? "#fff" : "var(--foreground)",
+                    border: `1.5px solid ${active ? "#1C1C1E" : "var(--border)"}`,
+                    cursor: "pointer", transition: "background 0.15s ease, color 0.15s ease",
+                  }}>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* All of the above */}
+          <div className="mb-8">
+            <button type="button" onClick={toggleAll}
+              className="px-4 py-2.5 rounded-full text-sm font-medium flex items-center gap-1.5"
+              style={{
+                background: allSelected ? "var(--accent-nourish)" : "transparent",
+                color: allSelected ? "#2d5016" : "var(--muted)",
+                border: `1.5px dashed ${allSelected ? "transparent" : "var(--border)"}`,
+                cursor: "pointer", transition: "all 0.15s ease",
+              }}>
+              {allSelected && (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+              All of the above
+            </button>
+          </div>
+
+          <button type="button" disabled={!hasSelection} onClick={advance}
+            style={{
+              width: "100%", padding: "16px", borderRadius: "16px", fontSize: "16px", fontWeight: 600, border: "none",
+              cursor: hasSelection ? "pointer" : "not-allowed",
+              background: hasSelection ? "#1C1C1E" : "var(--border)",
+              color: hasSelection ? "#fff" : "var(--muted)",
+            }}>
+            Next
+          </button>
+        </div>
+      );
+    }
+
     return null;
   };
+
+  const canGoBack = step > 0;
 
   return (
     <div className="flex justify-center min-h-screen" style={{ background: "var(--background)" }}>
@@ -443,7 +569,7 @@ export default function OnboardingPage() {
 
         {/* Progress bar + back */}
         <div className="flex-none px-5 pt-5 pb-2" style={{ position: "relative", zIndex: 2 }}>
-          {step > 0 && (
+          {canGoBack && (
             <button type="button" onClick={goBack}
               className="flex items-center gap-1 text-sm font-medium mb-3"
               style={{ color: "var(--muted)", background: "none", border: "none", cursor: "pointer" }}>
@@ -456,8 +582,8 @@ export default function OnboardingPage() {
           <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--border)" }}>
             <div style={{
               height: "100%", borderRadius: "9999px", background: "#1C1C1E",
-              width: `${((step + 1) / TOTAL_STEPS) * 100}%`,
-              transition: "width 0.3s ease",
+              width: `${progressPct}%`,
+              transition: "width 0.4s ease",
             }} />
           </div>
         </div>
@@ -466,7 +592,7 @@ export default function OnboardingPage() {
         <div className="flex-1 relative overflow-hidden">
           <AnimatePresence mode="wait" custom={dir} initial={false}>
             <motion.div
-              key={step}
+              key={showDuration ? "duration" : step}
               custom={dir}
               variants={slideVariants}
               initial="enter"

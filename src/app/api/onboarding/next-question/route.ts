@@ -15,13 +15,15 @@ Focus area: ${focus}
 User's goal: "${goal}"
 ${prevContext ? `\nPrevious answers:\n${prevContext}` : ""}
 
-Generate follow-up question ${questionIndex + 1} of 5. It should build naturally on what we already know about this person — don't ask anything they've already answered. Make the options feel specific and human, not clinical.
+This is question ${questionIndex + 1}. You may ask between 3 and 6 questions total.
+Decide: do you have enough information to build a personalized plan, OR would one more question meaningfully improve it?
 
-Return ONLY valid JSON (no markdown, no explanation):
-{
-  "text": "question text",
-  "options": ["option 1", "option 2", "option 3", "option 4"]
-}`;
+If you have enough info (at least 3 questions answered), return: { "done": true }
+Otherwise, return the next question with 3–5 answer options. Don't repeat anything already asked.
+
+Return ONLY valid JSON (no markdown):
+Either { "done": true }
+Or { "done": false, "text": "question text", "options": ["option 1", "option 2", "option 3", "option 4"] }`;
 
   try {
     const message = await client.messages.create({
