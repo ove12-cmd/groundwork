@@ -6,6 +6,7 @@ import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FocusArea } from "@/lib/mock-data";
 import { PENDING_ONBOARDING_KEY } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/client";
 import BottomNav from "@/components/BottomNav";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -332,7 +333,7 @@ export default function OnboardingPage() {
     setStep(s => s - 1);
   };
 
-  const handleBuildPlan = () => {
+  const handleBuildPlan = async () => {
     try {
       localStorage.setItem(ONBOARDING_FLAG, "true");
       localStorage.setItem(PENDING_ONBOARDING_KEY, JSON.stringify({
@@ -345,7 +346,9 @@ export default function OnboardingPage() {
         duration,
       }));
     } catch { /* ignore */ }
-    router.push("/auth");
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    router.push(user ? "/plan" : "/auth");
   };
 
   const renderStep = () => {

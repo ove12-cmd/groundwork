@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { PHASES, USER_PLANS, ACTIVE_PLAN_ID, PENDING_ONBOARDING_KEY, type UserPlan, type PlanStatus } from "@/lib/mock-data";
+import { PHASES, PENDING_ONBOARDING_KEY, type UserPlan, type PlanStatus } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 
 const LOADING_MESSAGES = [
@@ -135,9 +135,10 @@ const SHEET_ACTIONS = [
 
 export default function PlanPage() {
   const router = useRouter();
-  const [plans, setPlans] = useState<UserPlan[]>(USER_PLANS);
-  const [activePlanId, setActivePlanId] = useState(ACTIVE_PLAN_ID);
-  const [selectedPlanId, setSelectedPlanId] = useState(ACTIVE_PLAN_ID);
+  const [plans, setPlans] = useState<UserPlan[]>([]);
+  const [planLoading, setPlanLoading] = useState(true);
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [sheetPlanId, setSheetPlanId] = useState<string | null>(null);
   const [planSummaries, setPlanSummaries] = useState<Record<string, string | null>>({});
   const [generating, setGenerating] = useState(false);
@@ -145,7 +146,7 @@ export default function PlanPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
+      if (!user) { setPlanLoading(false); return; }
 
       // Generate plan from pending onboarding data if present
       const pendingRaw = localStorage.getItem(PENDING_ONBOARDING_KEY);
@@ -182,29 +183,31 @@ export default function PlanPage() {
 
       supabase.from("plans").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
         .then(({ data }) => {
-          if (!data?.length) return;
-          const mapped: UserPlan[] = data.map((p) => ({
-            id: p.id,
-            name: p.name,
-            focusArea: p.focus_area as UserPlan["focusArea"],
-            totalDays: p.total_days,
-            completedDays: p.completed_days,
-            status: p.status as PlanStatus,
-          }));
-          setPlans(mapped);
-          const active = data.find((p) => p.is_active) ?? data[0];
-          setActivePlanId(active.id);
-          setSelectedPlanId(active.id);
-          const summaries: Record<string, string | null> = {};
-          data.forEach(p => { summaries[p.id] = p.summary ?? p.goal ?? null; });
-          setPlanSummaries(summaries);
+          if (data?.length) {
+            const mapped: UserPlan[] = data.map((p) => ({
+              id: p.id,
+              name: p.name,
+              focusArea: p.focus_area as UserPlan["focusArea"],
+              totalDays: p.total_days,
+              completedDays: p.completed_days,
+              status: p.status as PlanStatus,
+            }));
+            setPlans(mapped);
+            const active = data.find((p) => p.is_active) ?? data[0];
+            setActivePlanId(active.id);
+            setSelectedPlanId(active.id);
+            const summaries: Record<string, string | null> = {};
+            data.forEach(p => { summaries[p.id] = p.summary ?? p.goal ?? null; });
+            setPlanSummaries(summaries);
+          }
+          setPlanLoading(false);
         });
     });
   }, []);
 
   if (generating) return <PlanGeneratingScreen />;
 
-  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? plans[0];
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? plans[0] ?? null;
   const sheetPlan = plans.find((p) => p.id === sheetPlanId) ?? null;
 
   const handleSheetAction = (actionId: string) => {
@@ -256,6 +259,23 @@ export default function PlanPage() {
             </button>
           </div>
 
+          {planLoading ? (
+            <div className="flex flex-col gap-3">
+              <div className="skeleton rounded-2xl h-8 w-48" />
+              <div className="skeleton rounded-2xl h-5 w-32 mb-4" />
+              {[1, 2, 3].map(i => <div key={i} className="skeleton rounded-2xl h-24" />)}
+            </div>
+          ) : !selectedPlan ? (
+            <div className="flex flex-col items-center text-center gap-3 pt-12">
+              <p className="text-base font-semibold" style={{ color: "var(--foreground)" }}>No plan yet</p>
+              <p className="text-sm" style={{ color: "var(--muted)" }}>Create your first personalised plan to get started.</p>
+              <button type="button" onClick={() => router.push("/onboarding")}
+                className="mt-2 px-5 py-3 rounded-2xl text-sm font-semibold"
+                style={{ background: "#1C1C1E", color: "#fff", border: "none", cursor: "pointer" }}>
+                Create a plan
+              </button>
+            </div>
+          ) : (<>
           {/* Horizontal scrollable plan cards */}
           {plans.length > 1 && (
             <div className="flex gap-3 overflow-x-auto pb-2 mb-6 -mx-5 pl-5" style={{ scrollbarWidth: "none" }}>
@@ -278,7 +298,7 @@ export default function PlanPage() {
           <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--foreground)" }}>
             {selectedPlan.focusArea} — {selectedPlan.totalDays} Days
           </h1>
-          {planSummaries[selectedPlanId] && (
+          {selectedPlanId && planSummaries[selectedPlanId] && (
             <p className="text-sm mb-8 leading-relaxed" style={{ color: "var(--muted)" }}>
               {planSummaries[selectedPlanId]}
             </p>
@@ -309,22 +329,25 @@ export default function PlanPage() {
               </div>
             ))}
           </div>
+          </>)}
         </div>
 
         {/* Fixed bottom CTA */}
-        <div
-          className="fixed left-1/2 -translate-x-1/2 w-full max-w-[390px] px-5 pt-4 pb-4"
-          style={{ bottom: 72, background: "linear-gradient(to top, var(--background) 70%, transparent)" }}
-        >
-          <button
-            type="button"
-            onClick={() => router.push(`/plan/days?planId=${selectedPlanId}`)}
-            className="w-full py-4 rounded-2xl text-base font-semibold"
-            style={{ background: "#1C1C1E", color: "#ffffff" }}
+        {selectedPlan && !planLoading && (
+          <div
+            className="fixed left-1/2 -translate-x-1/2 w-full max-w-[390px] px-5 pt-4 pb-4"
+            style={{ bottom: 72, background: "linear-gradient(to top, var(--background) 70%, transparent)" }}
           >
-            Days overview
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/plan/days?planId=${selectedPlanId}`)}
+              className="w-full py-4 rounded-2xl text-base font-semibold"
+              style={{ background: "#1C1C1E", color: "#ffffff" }}
+            >
+              Days overview
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Action sheet */}

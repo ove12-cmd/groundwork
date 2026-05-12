@@ -164,7 +164,7 @@ export default function TodayPage() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem("groundwork-user-name");
-      if (stored) setFirstName(stored.split(" ")[0]);
+      if (stored) { const n = stored.split(" ")[0]; setFirstName(n.charAt(0).toUpperCase() + n.slice(1)); }
     } catch { /* ignore */ }
 
     // Build week dots and mood sparkline from real tracking data

@@ -73,7 +73,7 @@ export default function ProfilePage() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem("groundwork-user-name");
-      if (stored) setFirstName(stored.split(" ")[0]);
+      if (stored) { const n = stored.split(" ")[0]; setFirstName(n.charAt(0).toUpperCase() + n.slice(1)); }
     } catch { /* ignore */ }
 
     try {
