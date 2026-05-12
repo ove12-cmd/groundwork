@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import type { FocusArea } from "@/lib/mock-data";
+import { AI_PLAN_KEY } from "@/lib/mock-data";
 import BottomNav from "@/components/BottomNav";
 
-// ── Types & data ──────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type LocalFocus = FocusArea | "write-myself";
-
 interface Question { text: string; options: string[] }
 
-const QUESTIONS: Record<string, Question[]> = {
+// ── Static fallback questions (shown if API fails) ────────────────────────────
+
+const FALLBACK_QUESTIONS: Record<string, Question[]> = {
   "Social Anxiety": [
     { text: "Which situations feel hardest for you?", options: ["Speaking up in a group", "Meeting new people", "Being the centre of attention", "Fear of being judged", "All social situations"] },
     { text: "How long have you been experiencing this?", options: ["Less than a year", "1–3 years", "3–5 years", "Most of my life"] },
@@ -88,7 +90,7 @@ const GOAL_PREFILL: Record<string, string> = {
 const DURATIONS = [{ label: "7 days", value: 7 }, { label: "14 days", value: 14 }, { label: "30 days", value: 30 }];
 const FOCUS_AREAS: FocusArea[] = ["Social Anxiety", "Depression", "Anxiety", "Anger", "Confidence", "Self-esteem"];
 const ONBOARDING_FLAG = "hasCompletedOnboarding";
-const TOTAL_STEPS = 8; // 0:focus 1:goal 2-6:questions 7:duration
+const TOTAL_STEPS = 8;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -100,7 +102,7 @@ function LeafIcon() {
   );
 }
 
-function LoadingScreen() {
+function LoadingScreen({ message = "Building your plan…", sub = "Personalizing your journey" }: { message?: string; sub?: string }) {
   return (
     <div className="fixed inset-0 flex justify-center" style={{ background: "var(--background)" }}>
       <div className="w-full max-w-[390px] flex flex-col items-center justify-center gap-6">
@@ -108,8 +110,8 @@ function LoadingScreen() {
           <LeafIcon />
         </div>
         <div className="text-center">
-          <p className="text-base font-semibold mb-1" style={{ color: "var(--foreground)" }}>Building your plan…</p>
-          <p className="text-sm" style={{ color: "var(--muted)" }}>Personalizing your journey</p>
+          <p className="text-base font-semibold mb-1" style={{ color: "var(--foreground)" }}>{message}</p>
+          <p className="text-sm" style={{ color: "var(--muted)" }}>{sub}</p>
         </div>
         <div className="flex items-center gap-2">
           <span className="loading-dot" style={{ animationDelay: "0ms" }} />
@@ -117,6 +119,22 @@ function LoadingScreen() {
           <span className="loading-dot" style={{ animationDelay: "400ms" }} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuestionSkeleton() {
+  return (
+    <div className="px-6 pt-12 pb-10 animate-pulse">
+      <div className="h-3 w-24 rounded-full mb-4" style={{ background: "var(--border)" }} />
+      <div className="h-6 w-full rounded-full mb-2" style={{ background: "var(--border)" }} />
+      <div className="h-6 w-3/4 rounded-full mb-8" style={{ background: "var(--border)" }} />
+      <div className="flex flex-wrap gap-2.5 mb-8">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="h-10 rounded-full" style={{ background: "var(--border)", width: `${80 + i * 20}px` }} />
+        ))}
+      </div>
+      <div className="h-14 rounded-2xl" style={{ background: "var(--border)" }} />
     </div>
   );
 }
@@ -140,28 +158,93 @@ export default function OnboardingPage() {
   const [duration, setDuration] = useState(30);
   const [loading, setLoading] = useState(false);
   const [isReturning, setIsReturning] = useState(false);
+  const [dynamicQuestions, setDynamicQuestions] = useState<Question[]>([]);
+  const [questionLoading, setQuestionLoading] = useState(false);
 
   useEffect(() => {
     try { setIsReturning(localStorage.getItem(ONBOARDING_FLAG) === "true"); } catch { /* ignore */ }
   }, []);
 
   const focusKey = focus ?? "write-myself";
-  const questions = QUESTIONS[focusKey] ?? QUESTIONS["write-myself"];
+  const fallbackQuestions = FALLBACK_QUESTIONS[focusKey] ?? FALLBACK_QUESTIONS["write-myself"];
 
-  const advance = () => {
-    if (step === 0 && focus && focus !== "write-myself" && !goalText) {
-      setGoalText(GOAL_PREFILL[focus] ?? "");
+  const getQuestion = (qi: number): Question | null => dynamicQuestions[qi] ?? null;
+
+  const fetchQuestion = async (qi: number): Promise<Question> => {
+    const previousQA = Array.from({ length: qi }, (_, i) => {
+      const q = getQuestion(i);
+      return { question: q?.text ?? "", answers: answers[i] ?? [] };
+    });
+
+    const res = await fetch("/api/onboarding/next-question", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ focus: focusKey, goal: goalText, questionIndex: qi, previousQA }),
+    });
+
+    if (!res.ok) throw new Error("API error");
+    return res.json();
+  };
+
+  const fetchAndAdvance = async (nextQI: number) => {
+    setDir(1);
+    setStep(s => s + 1);
+    setQuestionLoading(true);
+    try {
+      const q = await fetchQuestion(nextQI);
+      setDynamicQuestions(prev => { const next = [...prev]; next[nextQI] = q; return next; });
+    } catch {
+      setDynamicQuestions(prev => { const next = [...prev]; next[nextQI] = fallbackQuestions[nextQI]; return next; });
+    } finally {
+      setQuestionLoading(false);
     }
+  };
+
+  const advance = async () => {
+    if (step === 0) {
+      if (focus && focus !== "write-myself" && !goalText) setGoalText(GOAL_PREFILL[focus] ?? "");
+      setDir(1);
+      setStep(1);
+      return;
+    }
+    if (step === 1) { await fetchAndAdvance(0); return; }
+    if (step >= 2 && step <= 5) { await fetchAndAdvance(step - 1); return; }
     setDir(1);
     setStep(s => s + 1);
   };
 
   const goBack = () => { setDir(-1); setStep(s => s - 1); };
 
-  const handleBuildPlan = () => {
-    try { localStorage.setItem(ONBOARDING_FLAG, "true"); } catch { /* ignore */ }
+  const handleBuildPlan = async () => {
     setLoading(true);
-    setTimeout(() => router.push("/auth"), 2000);
+    try { localStorage.setItem(ONBOARDING_FLAG, "true"); } catch { /* ignore */ }
+
+    const questionsAndAnswers = Array.from({ length: 5 }, (_, i) => {
+      const q = dynamicQuestions[i] ?? fallbackQuestions[i];
+      return { question: q?.text ?? "", answers: answers[i] ?? [] };
+    });
+
+    try {
+      const res = await fetch("/api/onboarding/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ focus: focusKey, goal: goalText, questionsAndAnswers, duration }),
+      });
+
+      if (res.ok) {
+        const plan = await res.json();
+        try {
+          localStorage.setItem(AI_PLAN_KEY, JSON.stringify({
+            ...plan,
+            focusArea: focusKey,
+            totalDays: duration,
+            createdAt: new Date().toISOString(),
+          }));
+        } catch { /* ignore */ }
+      }
+    } catch { /* ignore — fall back to mock plan */ }
+
+    router.push("/auth");
   };
 
   if (loading) return <LoadingScreen />;
@@ -242,9 +325,12 @@ export default function OnboardingPage() {
             rows={5}
             autoFocus
           />
+          <p className="text-xs mt-3 mb-6" style={{ color: "var(--muted)" }}>
+            ✦ AI will use this to personalise your questions and plan
+          </p>
           <button type="button" disabled={!canContinue} onClick={advance}
             style={{
-              width: "100%", marginTop: 24, padding: "16px", borderRadius: "16px", fontSize: "16px", fontWeight: 600, border: "none",
+              width: "100%", padding: "16px", borderRadius: "16px", fontSize: "16px", fontWeight: 600, border: "none",
               cursor: canContinue ? "pointer" : "not-allowed",
               background: canContinue ? "#1C1C1E" : "var(--border)",
               color: canContinue ? "#fff" : "var(--muted)",
@@ -257,14 +343,18 @@ export default function OnboardingPage() {
 
     // ── Steps 2–6: Questions ──────────────────────────────────────────────────
     if (step >= 2 && step <= 6) {
+      if (questionLoading) return <QuestionSkeleton />;
+
       const qi = step - 2;
-      const q = questions[qi];
+      const q = dynamicQuestions[qi] ?? fallbackQuestions[qi];
       const selected = answers[qi] ?? [];
       const hasSelection = selected.length > 0;
+
       const toggle = (opt: string) => setAnswers(a => {
         const prev = a[qi] ?? [];
         return { ...a, [qi]: prev.includes(opt) ? prev.filter(o => o !== opt) : [...prev, opt] };
       });
+
       return (
         <div className="px-6 pt-12 pb-10">
           <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "var(--muted)" }}>
@@ -279,8 +369,7 @@ export default function OnboardingPage() {
             {q.options.map((opt) => {
               const active = selected.includes(opt);
               return (
-                <button key={opt} type="button"
-                  onClick={() => toggle(opt)}
+                <button key={opt} type="button" onClick={() => toggle(opt)}
                   className="text-left px-4 py-2.5 rounded-full text-sm font-medium"
                   style={{
                     background: active ? "#1C1C1E" : "var(--card)",

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { PLAN_DAYS } from "@/lib/mock-data";
+import { PLAN_DAYS, AI_PLAN_KEY, type AIPlan } from "@/lib/mock-data";
 
 const PHASE_COLORS: Record<string, string> = {
   Awareness: "var(--accent-recharge)",
@@ -24,12 +24,24 @@ function chunkWeeks<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-const weeks = chunkWeeks(PLAN_DAYS, WEEK_SIZE);
-const TOTAL_WEEKS = weeks.length;
-
 export default function PlanDaysPage() {
   const router = useRouter();
   const [weekIndex, setWeekIndex] = useState(0);
+  const [weeks, setWeeks] = useState(() => chunkWeeks(PLAN_DAYS, WEEK_SIZE));
+  const [aiPlan, setAiPlan] = useState<AIPlan | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AI_PLAN_KEY);
+      if (raw) {
+        const plan: AIPlan = JSON.parse(raw);
+        setAiPlan(plan);
+        if (plan.days?.length) setWeeks(chunkWeeks(plan.days, WEEK_SIZE));
+      }
+    } catch { /* fall back to mock */ }
+  }, []);
+
+  const TOTAL_WEEKS = weeks.length;
 
   const isFirstWeek = weekIndex === 0;
   const isLastWeek = weekIndex === TOTAL_WEEKS - 1;
@@ -66,7 +78,7 @@ export default function PlanDaysPage() {
 
           <div className="flex items-end justify-between mb-1">
             <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--muted)" }}>
-              Day by day
+              {aiPlan?.planName ?? "Day by day"}
             </p>
             <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>
               Week {weekIndex + 1} of {TOTAL_WEEKS}

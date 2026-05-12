@@ -401,6 +401,20 @@ export const WEEKLY_REVIEWS: WeeklyReview[] = [
   },
 ];
 
+// ── AI-generated plan ──────────────────────────────────────────────────────────
+
+export const AI_PLAN_KEY = "groundwork-ai-plan";
+
+export interface AIPlan {
+  planName: string;
+  focusArea: string;
+  summary: string;
+  totalDays: number;
+  habits: Array<{ name: string; icon: HabitIcon; frequency: HabitFrequency }>;
+  days: Day[];
+  createdAt: string;
+}
+
 export const STREAK = 4;
 
 /** Days the user has fully completed (mock — days 1-4 done, today in progress). */
