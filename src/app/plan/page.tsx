@@ -22,7 +22,7 @@ function PlanGeneratingScreen() {
     return () => clearInterval(t);
   }, []);
   return (
-    <div className="fixed inset-0 flex justify-center items-center" style={{ background: "var(--background)" }}>
+    <div className="fixed inset-0 flex justify-center items-center" style={{ background: "var(--background)", zIndex: 60 }}>
       <div className="flex flex-col items-center gap-6 px-8 text-center">
         <div className="flex gap-2">
           {[0, 1, 2].map((i) => (
